@@ -1,0 +1,31 @@
+﻿class_name,ten_hien_thi,khau_phan_gram,kcal,protein_g,carb_g,fat_g,fiber_g,kcal_per_100g,do_tin_cay,nguon,mo_ta_khau_phan
+banh_beo,Bánh bèo,150,200,7,32,5,1.0,133,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa (khoảng 10 chén nhỏ)
+banh_bot_loc,Bánh bột lọc,150,300,12,45,8,1.0,200,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa (khoảng 6 cái)
+banh_can,Bánh căn,150,280,10,40,9,1.0,187,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa (khoảng 6 cái)
+banh_canh,Bánh canh,450,450,20,65,12,2.0,100,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+banh_chung,Bánh chưng,150,300,9,38,13,2.0,200,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 miếng (khoảng 1/6 cái)
+banh_cuon,Bánh cuốn,200,330,13,52,8,2.0,165,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa
+banh_duc,Bánh đúc,200,260,8,40,7,1.0,130,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa
+banh_gio,Bánh giò,150,270,8,35,11,1.0,180,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 cái
+banh_khot,Bánh khọt,180,350,12,38,17,1.0,194,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 đĩa (khoảng 6 cái)
+banh_mi,Bánh mì,200,440,18,50,19,3.0,220,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 ổ bánh mì thịt
+banh_pia,Bánh pía,100,370,5,50,17,2.0,370,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 cái
+banh_tet,Bánh tét,150,300,8,40,12,2.0,200,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 miếng (khoảng 1/6 cái)
+banh_trang_nuong,Bánh tráng nướng,100,240,8,30,10,1.0,240,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 cái
+banh_xeo,Bánh xèo,250,490,15,45,28,3.0,196,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 cái (chưa tính rau sống)
+bun_bo_hue,Bún bò Huế,600,540,28,70,16,3.0,90,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+bun_dau_mam_tom,Bún đậu mắm tôm,400,660,25,65,33,3.0,165,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 mẹt phần 1 người
+bun_mam,Bún mắm,550,510,30,60,17,3.0,93,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+bun_rieu,Bún riêu,500,440,22,55,15,3.0,88,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+bun_thit_nuong,Bún thịt nướng,450,600,25,75,22,4.0,133,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+ca_kho_to,Cá kho tộ,150,300,25,12,17,0.5,200,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 phần cá kho (chưa tính cơm)
+canh_chua,Canh chua,350,150,14,14,4,3.0,43,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+cao_lau,Cao lầu,450,550,28,70,18,3.0,122,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+chao_long,Cháo lòng,450,380,22,45,12,1.0,84,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+com_tam,Cơm tấm,450,740,32,90,28,3.0,164,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),"1 dĩa (sườn, bì, chả, trứng)"
+goi_cuon,Gỏi cuốn,160,180,10,28,3,2.0,113,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),2 cuốn (chưa tính nước chấm)
+hu_tieu,Hủ tiếu,500,440,24,62,11,2.0,88,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+mi_quang,Mì Quảng,500,520,28,65,16,3.0,104,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô
+nem_chua,Nem chua,100,170,17,8,8,0.5,170,thap,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 phần (khoảng 4-5 cái)
+pho,Phở,500,440,25,60,11,2.0,88,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 tô phở bò
+xoi_xeo,Xôi xéo,150,300,8,48,8,3.0,200,trung_binh,Ước tính tham khảo từ công thức phổ biến (chưa đối chiếu trực tiếp Bảng TPTP VN),1 gói
