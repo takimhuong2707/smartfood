@@ -22,70 +22,58 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
   const [summary, setSummary] = useState<TodaySummary>({
     targets: {
-      bmr: 1500,
-      tdee: 1800,
-      kcal: user?.targets?.kcal || 1800,
-      protein: user?.targets?.protein || 110,
-      carb: user?.targets?.carb || 230,
-      fat: user?.targets?.fat || 55,
+      bmr: 1205,
+      tdee: 1657,
+      kcal: user?.targets?.kcal || 1221,
+      protein: user?.targets?.protein || 85,
+      carb: user?.targets?.carb || 150,
+      fat: user?.targets?.fat || 35,
     },
-    consumed: { kcal: 1240, protein: 62, carb: 150, fat: 38 },
-    remainingKcal: 560,
-    meals: [
-      {
-        id: '1',
-        mealType: 'breakfast',
-        mealLabel: 'Sáng · Vừa 450g',
-        title: 'Bánh canh',
-        kcal: 420,
-        done: true,
-        iconBg: '#E8F5E9',
-      },
-      {
-        id: '2',
-        mealType: 'lunch',
-        mealLabel: 'Trưa · Vừa 550g',
-        title: 'Bún bò Huế',
-        kcal: 540,
-        done: true,
-        iconBg: '#FFF3E0',
-      },
-      {
-        id: '3',
-        mealType: 'dinner',
-        mealLabel: 'Tối',
-        title: 'Chụp món để ghi nhận',
-        kcal: 0,
-        done: false,
-        iconBg: '#E0F2F1',
-      },
-    ],
-    recommendation: 'Còn 560 kcal. Bữa tối nên chọn món dưới 500 kcal, nhiều đạm.',
+    consumed: { kcal: 0, protein: 0, carb: 0, fat: 0 },
+    remainingKcal: user?.targets?.kcal || 1221,
+    meals: [],
+    recommendation: 'Chưa có bữa ăn nào được ghi nhận cho ngày này.',
   });
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await userService.getTodaySummary();
-        if (data) setSummary(data);
-      } catch {
-        // Fallback to default initial state if offline
-      }
-    })();
-  }, []);
-
-  const getVietnameseDate = () => {
-    const now = new Date();
-    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    return `${days[now.getDay()]}, ${now.getDate()} tháng ${now.getMonth() + 1}`;
+  const toDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
 
-  const targetKcal = user?.targets?.kcal || summary.targets.kcal || 1800;
-  const targetProtein = user?.targets?.protein || summary.targets.protein || 110;
-  const targetCarb = user?.targets?.carb || summary.targets.carb || 230;
-  const targetFat = user?.targets?.fat || summary.targets.fat || 55;
+  const loadSummary = async (date: Date) => {
+    try {
+      setLoadingSummary(true);
+      const dateStr = toDateKey(date);
+      const data = await userService.getTodaySummary(dateStr);
+      if (data) setSummary(data);
+    } catch (err) {
+      console.warn('Lỗi tải summary:', err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSummary(selectedDate);
+  }, [selectedDate]);
+
+  const getDisplayDate = () => {
+    if (summary.dateLabel) return summary.dateLabel;
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    return `${days[selectedDate.getDay()]}, ${selectedDate.getDate()} tháng ${selectedDate.getMonth() + 1}`;
+  };
+
+  const targetKcal = user?.targets?.kcal || summary.targets.kcal || 1221;
+  const targetProtein = user?.targets?.protein || summary.targets.protein || 85;
+  const targetCarb = user?.targets?.carb || summary.targets.carb || 150;
+  const targetFat = user?.targets?.fat || summary.targets.fat || 35;
 
   const remainingKcal = Math.max(targetKcal - summary.consumed.kcal, 0);
 
@@ -99,19 +87,26 @@ export default function HomeScreen() {
         {/* Header: Greeting & Notification */}
         <View style={s.headerRow}>
           <View>
-            <Text style={s.dateText}>{getVietnameseDate()}</Text>
+            <Text style={s.dateText}>{getDisplayDate()}</Text>
             <Text style={s.greetingText}>
               Xin chào, <Text style={s.nameBold}>{user?.fullName || 'Bạn'}</Text>
             </Text>
           </View>
-          <TouchableOpacity style={s.bellButton} activeOpacity={0.8}>
-            <Ionicons name="notifications-outline" size={22} color="#1B2A22" />
-            <View style={s.bellDot} />
+          <TouchableOpacity
+            style={s.bellButton}
+            activeOpacity={0.8}
+            onPress={() => loadSummary(selectedDate)}
+          >
+            <Ionicons name="refresh" size={20} color="#1B2A22" />
           </TouchableOpacity>
         </View>
 
         {/* Week Calendar Bar */}
-        <WeekCalendar />
+        <WeekCalendar
+          selectedDate={selectedDate}
+          onSelectDate={(day) => setSelectedDate(day)}
+          daysWithMeals={summary.daysWithMeals}
+        />
 
         {/* Main Nutrition Card (Forest Green Gradient) */}
         <LinearGradient
@@ -210,59 +205,75 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        {/* Section: Bữa ăn hôm nay */}
+        {/* Section: Bữa ăn */}
         <View style={s.mealsHeader}>
-          <Text style={s.mealsTitle}>Bữa ăn hôm nay</Text>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Text style={s.viewAllLink}>Xem tất cả</Text>
+          <Text style={s.mealsTitle}>
+            {summary.isToday ? 'Bữa ăn hôm nay' : `Bữa ăn (${getDisplayDate()})`}
+          </Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => loadSummary(selectedDate)}>
+            <Text style={s.viewAllLink}>Làm mới</Text>
           </TouchableOpacity>
         </View>
 
         {/* Meals List */}
         <View style={s.mealsList}>
-          {summary.meals.map((item) => (
-            <View key={item.id} style={s.mealCard}>
-              <View
-                style={[
-                  s.mealIconWrap,
-                  { backgroundColor: item.iconBg || (item.done ? '#E8F5E9' : '#E0F2F1') },
-                ]}
-              >
-                <Ionicons
-                  name={item.done ? 'restaurant-outline' : 'add'}
-                  size={22}
-                  color={item.done ? '#2E7D4F' : '#00796B'}
-                />
-              </View>
-
-              <View style={s.mealInfo}>
-                <Text style={s.mealSub}>{item.mealLabel}</Text>
-                <Text style={s.mealMain}>{item.title}</Text>
-              </View>
-
-              {item.done ? (
-                <View style={s.mealKcalWrap}>
-                  <Text style={s.mealKcalValue}>{item.kcal}</Text>
-                  <Text style={s.mealKcalUnit}>kcal</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={s.addButton}
-                  activeOpacity={0.8}
-                  onPress={() => router.push('/scan' as any)}
+          {summary.meals.length === 0 ? (
+            <TouchableOpacity
+              style={s.emptyMealCard}
+              activeOpacity={0.8}
+              onPress={() => router.push('/scan' as any)}
+            >
+              <Ionicons name="camera-outline" size={32} color="#2E7D4F" />
+              <Text style={s.emptyMealTitle}>Chưa có bữa ăn nào</Text>
+              <Text style={s.emptyMealSub}>
+                Nhấn vào đây để chụp ảnh món ăn và ghi lại dinh dưỡng cho ngày này
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            summary.meals.map((item) => (
+              <View key={item.id} style={s.mealCard}>
+                <View
+                  style={[
+                    s.mealIconWrap,
+                    { backgroundColor: item.iconBg || (item.done ? '#E8F5E9' : '#E0F2F1') },
+                  ]}
                 >
-                  <Text style={s.addButtonText}>Thêm</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
+                  <Ionicons
+                    name={item.done ? 'restaurant-outline' : 'add'}
+                    size={22}
+                    color={item.done ? '#2E7D4F' : '#00796B'}
+                  />
+                </View>
+
+                <View style={s.mealInfo}>
+                  <Text style={s.mealSub}>{item.mealLabel}</Text>
+                  <Text style={s.mealMain}>{item.title}</Text>
+                </View>
+
+                {item.done ? (
+                  <View style={s.mealKcalWrap}>
+                    <Text style={s.mealKcalValue}>{item.kcal}</Text>
+                    <Text style={s.mealKcalUnit}>kcal</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={s.addButton}
+                    activeOpacity={0.8}
+                    onPress={() => router.push('/scan' as any)}
+                  >
+                    <Text style={s.addButtonText}>Thêm</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          )}
         </View>
 
         {/* Recommendation Card */}
         <TouchableOpacity
           style={s.recomCard}
           activeOpacity={0.85}
-          onPress={() => router.push('/profile' as any)}
+          onPress={() => router.push('/chatbot' as any)}
         >
           <View style={s.recomIconWrap}>
             <Ionicons name="sparkles" size={18} color="#2E7D4F" />
@@ -568,5 +579,28 @@ const s = StyleSheet.create({
     color: '#78350F',
     marginTop: 2,
     lineHeight: 16,
+  },
+  emptyMealCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    marginBottom: 8,
+  },
+  emptyMealTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  emptyMealSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    maxWidth: 260,
   },
 });

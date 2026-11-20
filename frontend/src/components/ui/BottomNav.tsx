@@ -18,6 +18,10 @@ export default function BottomNav({ activeTab, onCameraPress }: BottomNavProps) 
   const handleTabPress = (tab: TabType) => {
     if (tab === 'home') {
       router.replace('/');
+    } else if (tab === 'stats') {
+      router.replace('/stats' as any);
+    } else if (tab === 'chat') {
+      router.replace('/chatbot' as any);
     } else if (tab === 'profile') {
       router.replace('/profile' as any);
     } else if (tab === 'camera') {

@@ -65,6 +65,10 @@ export type TodaySummary = {
   remainingKcal: number;
   meals: MealSummaryItem[];
   recommendation: string;
+  selectedDate?: string;
+  dateLabel?: string;
+  daysWithMeals?: string[];
+  isToday?: boolean;
 };
 
 export type AuthResponse = {

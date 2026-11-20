@@ -9,5 +9,7 @@ router.use(auth); // Tất cả route user đều yêu cầu đăng nhập
 router.get('/profile', ctrl.getProfile);
 router.put('/profile', ctrl.updateProfile);
 router.get('/today-summary', ctrl.getTodaySummary);
+router.get('/statistics', ctrl.getStatistics);
+router.post('/weight', ctrl.recordWeight);
 
 export default router;

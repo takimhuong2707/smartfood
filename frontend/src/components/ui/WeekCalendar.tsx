@@ -3,17 +3,43 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
-export default function WeekCalendar() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+interface WeekCalendarProps {
+  selectedDate?: Date;
+  onSelectDate?: (date: Date) => void;
+  daysWithMeals?: string[];
+}
+
+export default function WeekCalendar({
+  selectedDate: propSelectedDate,
+  onSelectDate,
+  daysWithMeals = [],
+}: WeekCalendarProps) {
+  const [internalSelected, setInternalSelected] = useState<Date>(new Date());
+  const activeDate = propSelectedDate || internalSelected;
+
+  const handleSelect = (day: Date) => {
+    if (onSelectDate) {
+      onSelectDate(day);
+    } else {
+      setInternalSelected(day);
+    }
+  };
+
+  const toDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
   const daysOfWeek = useMemo(() => {
-    const today = new Date();
-    const currentDay = today.getDay(); // 0 is Sunday
+    const base = propSelectedDate || new Date();
+    const currentDay = base.getDay(); // 0 is Sunday
     // Monday as start of week
     const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
 
-    const monday = new Date(today);
-    monday.setDate(today.getDate() + distanceToMonday);
+    const monday = new Date(base);
+    monday.setDate(base.getDate() + distanceToMonday);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -22,7 +48,7 @@ export default function WeekCalendar() {
       days.push(d);
     }
     return days;
-  }, []);
+  }, [propSelectedDate]);
 
   const isSameDay = (d1: Date, d2: Date) =>
     d1.getDate() === d2.getDate() &&
@@ -32,20 +58,30 @@ export default function WeekCalendar() {
   return (
     <View style={s.container}>
       {daysOfWeek.map((day, idx) => {
-        const isSelected = isSameDay(day, selectedDate);
+        const isSelected = isSameDay(day, activeDate);
         const dayLabel = DAY_LABELS[day.getDay()];
         const dateNum = day.getDate();
+        const hasMeal = daysWithMeals.includes(toDateKey(day));
 
         return (
           <TouchableOpacity
             key={idx}
             activeOpacity={0.8}
-            onPress={() => setSelectedDate(day)}
+            onPress={() => handleSelect(day)}
             style={[s.dayBox, isSelected && s.dayBoxActive]}
           >
             <Text style={[s.label, isSelected && s.labelActive]}>{dayLabel}</Text>
             <Text style={[s.date, isSelected && s.dateActive]}>{dateNum}</Text>
-            <View style={[s.dot, isSelected && s.dotActive]} />
+            <View
+              style={[
+                s.dot,
+                isSelected
+                  ? s.dotActive
+                  : hasMeal
+                  ? { backgroundColor: '#2E7D4F', width: 5, height: 5, borderRadius: 2.5 }
+                  : { opacity: 0.3 },
+              ]}
+            />
           </TouchableOpacity>
         );
       })}
