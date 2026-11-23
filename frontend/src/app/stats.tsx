@@ -14,10 +14,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from '@/components/ui/BottomNav';
+import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/user.service';
 import type { DailyChartItem, StatisticsData } from '@/types/stats';
 
 export default function StatisticsScreen() {
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [periodDays, setPeriodDays] = useState<7 | 14 | 30>(7);
@@ -203,12 +205,12 @@ export default function StatisticsScreen() {
                 <View style={[s.kpiIconWrap, { backgroundColor: '#F3E8FF' }]}>
                   <Ionicons name="fitness-outline" size={18} color="#7E22CE" />
                 </View>
-                <Text style={s.kpiLabel}>Cân nặng hiện tại</Text>
+                <Text style={s.kpiLabel}>Cơ thể ({user?.gender === 'male' ? 'Nam' : user?.gender === 'female' ? 'Nữ' : '--'})</Text>
                 <Text style={s.kpiValue}>
                   {data?.weight?.currentKg || 47.0} <Text style={s.kpiUnit}>kg</Text>
                 </Text>
                 <Text style={s.kpiSub}>
-                  BMI: {data?.weight?.bmi || 19.3} ({data?.weight?.bmiStatus || 'Cân đối'})
+                  Cao {user?.heightCm || (data?.weight?.currentKg && data?.weight?.bmi ? Math.round(Math.sqrt(data.weight.currentKg / data.weight.bmi) * 100) : '--')} cm • BMI {data?.weight?.bmi || '--'}
                 </Text>
               </View>
             </View>
@@ -701,11 +703,12 @@ const s = StyleSheet.create({
   kpiGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    justifyContent: 'space-between',
+    rowGap: 10,
     marginBottom: 14,
   },
   kpiCard: {
-    width: '48.5%',
+    width: '48.2%',
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 12,

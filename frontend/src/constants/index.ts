@@ -1,4 +1,4 @@
-const rawApiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.8:5000/api';
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.4:5000/api';
 export const API_URL = rawApiUrl.trim().replace(/\s+/g, '');
 export const TOKEN_KEY = 'token';
 

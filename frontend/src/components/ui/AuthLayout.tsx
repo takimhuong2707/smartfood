@@ -29,7 +29,7 @@ export default function AuthLayout({ title, subtitle, children }: Props) {
           <View style={s.logo}>
             <Ionicons name="restaurant" size={34} color={COLORS.primary} />
           </View>
-          <Text style={s.brand}>[Tên app]</Text>
+          <Text style={s.brand}>SmartFood</Text>
           <Text style={s.tagline}>Chụp món ăn, biết ngay calo và dinh dưỡng</Text>
         </LinearGradient>
 

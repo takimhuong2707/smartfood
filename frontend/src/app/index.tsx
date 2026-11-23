@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/user.service';
 import type { TodaySummary } from '@/types/auth';
 import WeekCalendar from '@/components/ui/WeekCalendar';
+import GoalRoadmapSection from '@/components/ui/GoalRoadmapSection';
 import CircularNutrition from '@/components/ui/CircularNutrition';
 import BottomNav from '@/components/ui/BottomNav';
 
@@ -107,6 +108,9 @@ export default function HomeScreen() {
           onSelectDate={(day) => setSelectedDate(day)}
           daysWithMeals={summary.daysWithMeals}
         />
+
+        {/* Chế độ hướng đến (Giảm cân / Tăng cân / Duy trì) */}
+        <GoalRoadmapSection />
 
         {/* Main Nutrition Card (Forest Green Gradient) */}
         <LinearGradient

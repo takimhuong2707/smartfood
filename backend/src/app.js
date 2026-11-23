@@ -6,6 +6,7 @@ import { notFound, errorHandler } from './middlewares/errorHandler.js';
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/food-images', express.static('public/food-images'));
 
 app.use('/api', routes);
 

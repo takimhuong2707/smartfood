@@ -154,7 +154,7 @@ export default function ChatbotScreen() {
       <View style={[s.header, { paddingTop: Math.max(insets.top, 16) + 8 }]}>
         <TouchableOpacity
           style={s.backBtn}
-          onPress={() => router.replace('/')}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           activeOpacity={0.7}
         >
           <Ionicons name="arrow-back" size={22} color="#14261C" />

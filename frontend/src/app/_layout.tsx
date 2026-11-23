@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from '@/components/providers/AuthProvider';
+import FloatingChatbot from '@/components/ui/FloatingChatbot';
 import { useAuth } from '@/hooks/useAuth';
 import { COLORS } from '@/constants';
 
@@ -26,7 +27,15 @@ function Guard() {
       </View>
     );
   }
-  return <Slot />;
+  const first = segments[0] as string | undefined;
+  const hideChatbot = !user || first === 'login' || first === 'register' || first === 'chatbot' || first === 'scan';
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Slot />
+      {!hideChatbot && <FloatingChatbot />}
+    </View>
+  );
 }
 
 export default function RootLayout() {
