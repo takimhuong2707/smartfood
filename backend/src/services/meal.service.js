@@ -9,12 +9,16 @@ import AppError from '../utils/AppError.js';
 
 let foodsCache = null;
 
+export function invalidateFoodsCache() {
+  foodsCache = null;
+}
+
 export async function ensureFoodsSeeded() {
   if (foodsCache && foodsCache.length > 0) return foodsCache;
 
   const count = await Food.countDocuments();
   if (count > 0) {
-    foodsCache = await Food.find({ isActive: true }).lean();
+    foodsCache = await Food.find({ isActive: { $ne: false } }).lean();
     return foodsCache;
   }
 
@@ -70,7 +74,7 @@ export async function ensureFoodsSeeded() {
     console.log(`Đã nạp ${foodsToInsert.length} món ăn vào cơ sở dữ liệu MongoDB!`);
   }
 
-  foodsCache = await Food.find({ isActive: true }).lean();
+  foodsCache = await Food.find({ isActive: { $ne: false } }).lean();
   return foodsCache;
 }
 
@@ -88,7 +92,7 @@ export function calculateNutritionForGrams(food, grams) {
 
 export async function predictMealImage(userId, fileBuffer, mimeType = 'image/jpeg', fileName = 'upload.jpg') {
   await ensureFoodsSeeded();
-  const allFoods = await Food.find({ isActive: true }).lean();
+  const allFoods = await Food.find({ isActive: { $ne: false } }).lean();
   const foodMap = new Map(allFoods.map((f) => [f.classId, f]));
 
   let aiResult = null;
@@ -278,5 +282,5 @@ export async function saveMeal(userId, mealData) {
 
 export async function getAllFoods() {
   await ensureFoodsSeeded();
-  return Food.find({ isActive: true }).sort({ name: 1 }).lean();
+  return Food.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
 }

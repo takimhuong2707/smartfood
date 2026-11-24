@@ -1,6 +1,7 @@
 import { createContext, useCallback, useEffect, useState, type ReactNode } from 'react';
 import axios from 'axios';
 import { authService } from '@/services/auth.service';
+import { registerAuthCallbacks } from '@/utils/api';
 import { tokenStorage } from '@/utils/token';
 import type { AuthResponse, User } from '@/types/auth';
 
@@ -65,6 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     } catch {}
   }, []);
+
+  useEffect(() => {
+    registerAuthCallbacks({
+      onUnauthorized: logout,
+      onAdminForbidden: refreshUser,
+    });
+    return () => registerAuthCallbacks(null);
+  }, [logout, refreshUser]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser, refreshUser }}>

@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { userService } from '@/services/user.service';
 import { COLORS } from '@/constants';
 import BottomNav from '@/components/ui/BottomNav';
@@ -34,6 +35,7 @@ const GOAL_OPTIONS = [
 
 export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
+  const { isAdmin } = useIsAdmin();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -459,6 +461,17 @@ export default function ProfileScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {isAdmin && (
+          <TouchableOpacity
+            style={[s.logoutButton, { borderColor: '#C8DEC8', backgroundColor: '#EDF7ED', marginBottom: 10 }]}
+            onPress={() => router.push('/admin' as Href)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color="#1E5136" />
+            <Text style={[s.logoutButtonText, { color: '#1E5136' }]}>Quản trị</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Nút đăng xuất phụ */}
         <TouchableOpacity

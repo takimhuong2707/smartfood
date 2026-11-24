@@ -28,7 +28,13 @@ function Guard() {
     );
   }
   const first = segments[0] as string | undefined;
-  const hideChatbot = !user || first === 'login' || first === 'register' || first === 'chatbot' || first === 'scan';
+  const hideChatbot =
+    !user ||
+    first === 'login' ||
+    first === 'register' ||
+    first === 'chatbot' ||
+    first === 'scan' ||
+    first === 'admin';
 
   return (
     <View style={{ flex: 1 }}>

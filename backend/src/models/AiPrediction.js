@@ -13,5 +13,9 @@ const schema = new Schema(
   { timestamps: true }
 );
 schema.index({ userId: 1, createdAt: -1 });
+schema.index({ createdAt: -1 });
+schema.index({ status: 1 });
+schema.index({ 'top3.0.classId': 1 });
+schema.index({ 'top3.0.confidence': 1 });
 
 export default mongoose.model('AiPrediction', schema);
