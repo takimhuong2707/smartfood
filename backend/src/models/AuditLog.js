@@ -13,4 +13,7 @@ const auditLogSchema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 
+auditLogSchema.index({ createdAt: -1 });
+auditLogSchema.index({ targetType: 1, createdAt: -1 });
+
 export default mongoose.model('AuditLog', auditLogSchema);

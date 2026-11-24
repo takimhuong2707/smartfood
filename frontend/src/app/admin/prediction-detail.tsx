@@ -57,24 +57,72 @@ export default function AdminPredictionDetailScreen() {
         {error && <ErrorBox message={error} />}
         {detail && (
           <>
-            <View style={s.card}>
-              <Text style={s.cardTitle}>Thông tin chung</Text>
-              <Text style={s.rowText}>Người dùng: {detail.user?.fullName || '--'}</Text>
-              <Text style={s.rowText}>Model: {detail.modelVersion || '--'}</Text>
-              <Text style={s.rowText}>Trạng thái: {detail.status}</Text>
-              <Text style={s.rowText}>
-                Món user sửa thành: {detail.correctedFood ? detail.correctedFood.name : 'Không sửa'}
+            <View style={s.placeholderBox}>
+              <Ionicons name="scan-circle-outline" size={38} color={COLORS.primary} />
+              <Text style={s.placeholderTitle}>Bản ghi suy luận 3 mô hình AI</Text>
+              <Text style={s.placeholderSub}>
+                Ảnh quét được xử lý trực tiếp trên RAM để bảo vệ quyền riêng tư người dùng
               </Text>
             </View>
 
             <View style={s.card}>
-              <Text style={s.cardTitle}>Top 3 dự đoán</Text>
+              <Text style={s.cardTitle}>Thông tin chung</Text>
+              <Text style={s.rowText}>Người dùng: {detail.user?.fullName || '--'}</Text>
+              <Text style={s.rowText}>
+                Thời gian quét:{' '}
+                {detail.createdAt ? new Date(detail.createdAt).toLocaleString('vi-VN') : '--'}
+              </Text>
+              <Text style={s.rowText}>
+                Thời gian suy luận (Inference):{' '}
+                {detail.inferenceMs != null ? `${detail.inferenceMs} ms` : '--'}
+              </Text>
+              <Text style={s.rowText}>Trạng thái bữa ăn: {detail.status}</Text>
+              <Text style={s.rowText}>
+                Kết quả đối chiếu:{' '}
+                <Text style={detail.correctedFood ? s.correctedHighlight : s.okHighlight}>
+                  {detail.correctedFood
+                    ? `User đã sửa thành "${detail.correctedFood.name}"${
+                        detail.correctedFood.aiClassId ? ` (${detail.correctedFood.aiClassId})` : ''
+                      }`
+                    : 'Giữ nguyên kết quả AI'}
+                </Text>
+              </Text>
+            </View>
+
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Mô hình 1: YOLOv8 Detector (detect_to_mon.pt)</Text>
+              <Text style={s.rowText}>
+                Phát hiện vùng tô/dĩa:{' '}
+                {detail.detected === undefined
+                  ? 'Không ghi nhận (bản ghi cũ)'
+                  : detail.detected
+                  ? 'Có phát hiện bounding box'
+                  : 'Không rõ viền tô (dùng toàn ảnh)'}
+              </Text>
+              <Text style={s.rowText}>
+                Số phần ăn đếm được: {detail.bowlCount != null ? `${detail.bowlCount} tô/phần` : '1 phần'}
+              </Text>
+            </View>
+
+            <View style={s.card}>
+              <Text style={s.cardTitle}>Mô hình 2 & 3: Phân loại 30 món & Khẩu phần PortionNet</Text>
+              <Text style={s.modelVerText}>Pipeline: {detail.modelVersion || '--'}</Text>
               {detail.top3.map((t, idx) => {
-                const pct = t.confidence <= 1 ? (t.confidence * 100).toFixed(1) : t.confidence.toFixed(1);
+                const pct =
+                  t.confidence <= 1 ? (t.confidence * 100).toFixed(1) : t.confidence.toFixed(1);
                 return (
-                  <Text key={idx} style={s.rowText}>
-                    #{idx + 1}: {t.classId} ({pct}%)
-                  </Text>
+                  <View key={idx} style={s.candBox}>
+                    <View style={s.candTop}>
+                      <Text style={s.candRank}>#{idx + 1} {t.classId}</Text>
+                      <Text style={s.candConf}>{pct}%</Text>
+                    </View>
+                    {(t.grams != null || t.k != null) && (
+                      <Text style={s.candPortion}>
+                        PortionNet ước lượng: {t.grams != null ? `${t.grams}g` : '--'}
+                        {t.k != null ? ` (hệ số k = ${t.k})` : ''}
+                      </Text>
+                    )}
+                  </View>
                 );
               })}
             </View>
@@ -101,6 +149,17 @@ const s = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: '700', color: COLORS.ink },
   scroll: { paddingBottom: 32, gap: 12 },
+  placeholderBox: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    gap: 4,
+  },
+  placeholderTitle: { fontSize: 14, fontWeight: '700', color: COLORS.primaryDark },
+  placeholderSub: { fontSize: 12, color: COLORS.muted, textAlign: 'center' },
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 16,
@@ -109,6 +168,21 @@ const s = StyleSheet.create({
     borderColor: COLORS.border,
     gap: 6,
   },
-  cardTitle: { fontSize: 15, fontWeight: '700', color: COLORS.ink, marginBottom: 4 },
-  rowText: { fontSize: 13, color: COLORS.muted },
+  cardTitle: { fontSize: 15, fontWeight: '700', color: COLORS.ink, marginBottom: 2 },
+  rowText: { fontSize: 13, color: COLORS.muted, lineHeight: 20 },
+  correctedHighlight: { color: '#B45309', fontWeight: '700' },
+  okHighlight: { color: '#15803D', fontWeight: '700' },
+  modelVerText: { fontSize: 12, color: COLORS.muted, marginBottom: 4 },
+  candBox: {
+    backgroundColor: COLORS.bg,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 3,
+  },
+  candTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  candRank: { fontSize: 13, fontWeight: '700', color: COLORS.ink },
+  candConf: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  candPortion: { fontSize: 12, color: COLORS.primaryDark, fontWeight: '600' },
 });

@@ -23,3 +23,8 @@ export const save = asyncHandler(async (req, res) => {
 export const getFoods = asyncHandler(async (req, res) => {
   res.json(await mealService.getAllFoods());
 });
+
+export const submitFeedback = asyncHandler(async (req, res) => {
+  const fb = await mealService.createFeedback(req.user.id, req.body ?? {});
+  res.status(201).json(fb);
+});

@@ -29,6 +29,7 @@ const FILTERS = [
   { key: 'admin', label: 'Admin' },
   { key: 'user', label: 'User' },
   { key: 'ai', label: 'Có lớp AI' },
+  { key: 'hidden', label: 'Đã ẩn' },
 ] as const;
 
 type FilterKey = (typeof FILTERS)[number]['key'];
@@ -85,6 +86,7 @@ export default function AdminFoodsScreen() {
           search?: string;
           source?: string;
           hasAiClass?: string;
+          isActive?: string;
           page: number;
           limit: number;
         } = { page: targetPage, limit: 20 };
@@ -92,6 +94,7 @@ export default function AdminFoodsScreen() {
         if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
         if (filter === 'system' || filter === 'admin' || filter === 'user') params.source = filter;
         if (filter === 'ai') params.hasAiClass = 'true';
+        if (filter === 'hidden') params.isActive = 'false';
 
         const res = await adminService.getFoods(params);
         setTotalPages(res.pagination.totalPages);
@@ -135,12 +138,33 @@ export default function AdminFoodsScreen() {
     ]);
   };
 
+  const handleRestore = (food: AdminFood) => {
+    Alert.alert('Khôi phục món ăn', `Đưa "${food.name}" hiển thị trở lại cho người dùng?`, [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Khôi phục',
+        onPress: async () => {
+          try {
+            const res = await adminService.restoreFood(food._id);
+            Alert.alert('Thành công', res.message);
+            setItems((prev) => prev.filter((f) => f._id !== food._id));
+          } catch (e) {
+            if (await handleAuthError(e)) return;
+            Alert.alert('Không thể khôi phục', getErrorMessage(e));
+          }
+        },
+      },
+    ]);
+  };
+
   const renderItem = ({ item }: { item: AdminFood }) => {
     const imgUri = item.imageUrl?.startsWith('http')
       ? item.imageUrl
       : item.imageUrl
       ? `${BASE_HOST}${item.imageUrl}`
       : null;
+    const isHidden = item.isActive === false;
+    const stdServing = item.servingSizes?.find((sv) => sv.isDefault)?.grams;
 
     return (
       <View style={s.card}>
@@ -156,8 +180,10 @@ export default function AdminFoodsScreen() {
             {item.name}
           </Text>
           <Text style={s.meta}>
-            {Math.round(item.nutritionPer100g?.kcal || 0)} kcal/100g • {item.source || 'system'}
+            {Math.round(item.nutritionPer100g?.kcal || 0)} kcal/100g
+            {stdServing ? ` • Chuẩn ${stdServing}g` : ''} • {item.source || 'system'}
             {item.aiClassId ? ` • AI: ${item.aiClassId}` : ''}
+            {isHidden ? ' • Đã ẩn' : ''}
           </Text>
         </View>
         <TouchableOpacity
@@ -166,9 +192,15 @@ export default function AdminFoodsScreen() {
         >
           <Ionicons name="create-outline" size={18} color={COLORS.primary} />
         </TouchableOpacity>
-        <TouchableOpacity style={s.iconBtn} onPress={() => handleDelete(item)}>
-          <Ionicons name="trash-outline" size={18} color={COLORS.error} />
-        </TouchableOpacity>
+        {isHidden ? (
+          <TouchableOpacity style={s.iconBtn} onPress={() => handleRestore(item)}>
+            <Ionicons name="refresh-outline" size={18} color="#15803D" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={s.iconBtn} onPress={() => handleDelete(item)}>
+            <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };

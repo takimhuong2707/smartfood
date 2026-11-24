@@ -150,7 +150,10 @@ function buildPredictionMatch({ from, to, maxConfidence, predictedClass, status 
     if (!Number.isFinite(num) || num < 0 || num > 1) {
       throw new AppError(400, 'Ngưỡng độ tin cậy phải nằm trong khoảng [0, 1]');
     }
-    match['top3.0.confidence'] = { $lte: num };
+    match.$or = [
+      { 'top3.0.confidence': { $lte: num } },
+      { 'top3.0.confidence': { $gt: 1, $lte: num * 100 } },
+    ];
   }
   return match;
 }
@@ -294,6 +297,8 @@ export async function listPredictions({
         $project: {
           _id: 1,
           modelVersion: 1,
+          bowlCount: 1,
+          detected: 1,
           top3: 1,
           inferenceMs: 1,
           status: 1,
@@ -382,6 +387,8 @@ export async function getPredictionById(id) {
       $project: {
         _id: 1,
         modelVersion: 1,
+        bowlCount: 1,
+        detected: 1,
         top3: 1,
         inferenceMs: 1,
         status: 1,

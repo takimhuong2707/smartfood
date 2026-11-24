@@ -22,6 +22,10 @@ export const deleteFood = asyncHandler(async (req, res) => {
   res.json(await adminFoodService.deleteFood(req.user.id, req.params.id));
 });
 
+export const restoreFood = asyncHandler(async (req, res) => {
+  res.json(await adminFoodService.restoreFood(req.user.id, req.params.id));
+});
+
 export const uploadFoodImage = asyncHandler(async (req, res) => {
   res.json(await adminFoodService.updateFoodImage(req.user.id, req.params.id, req.file));
 });

@@ -10,10 +10,22 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const signToken = (u) =>
   jwt.sign({ id: u._id, role: u.role }, env.jwtSecret, { expiresIn: env.jwtExpires });
 
+const getActiveNote = (u) => {
+  if (!u?.note?.text || !u?.note?.expiresAt) return undefined;
+  if (new Date(u.note.expiresAt).getTime() <= Date.now()) return undefined;
+  return {
+    text: u.note.text,
+    createdAt: u.note.createdAt,
+    expiresAt: u.note.expiresAt,
+  };
+};
+
 const toPublicUser = (u, metric = null) => ({
   id: u._id,
   email: u.email,
   fullName: u.fullName,
+  avatarUrl: u.avatarUrl || undefined,
+  note: getActiveNote(u),
   role: u.role,
   hasProfile: Boolean(u.targets?.kcal),
   gender: u.gender,

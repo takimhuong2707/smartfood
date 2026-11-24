@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import BodyMetric from '../models/BodyMetric.js';
@@ -8,6 +9,16 @@ import { recordAuditLog } from '../utils/auditLog.js';
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function serializeNote(note) {
+  if (!note?.text || !note?.expiresAt) return undefined;
+  if (new Date(note.expiresAt).getTime() <= Date.now()) return undefined;
+  return {
+    text: note.text,
+    createdAt: note.createdAt,
+    expiresAt: note.expiresAt,
+  };
 }
 
 export async function listUsers({ search = '', role = '', isActive = '', page = 1, limit = 20 }) {
@@ -31,7 +42,7 @@ export async function listUsers({ search = '', role = '', isActive = '', page = 
 
   const [items, total] = await Promise.all([
     User.find(filter)
-      .select('_id email fullName role isActive createdAt')
+      .select('_id email fullName avatarUrl note role isActive createdAt')
       .sort({ createdAt: -1, _id: 1 })
       .skip((safePage - 1) * safeLimit)
       .limit(safeLimit)
@@ -40,7 +51,10 @@ export async function listUsers({ search = '', role = '', isActive = '', page = 
   ]);
 
   return {
-    items,
+    items: items.map((u) => ({
+      ...u,
+      note: serializeNote(u.note),
+    })),
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -54,16 +68,21 @@ export async function getUserDetail(id) {
   if (!mongoose.isValidObjectId(id)) throw new AppError(400, 'ID người dùng không hợp lệ');
 
   const user = await User.findById(id)
-    .select('_id email fullName role isActive gender birthYear activityLevel goal targets createdAt')
+    .select('_id email fullName avatarUrl note role isActive gender birthYear activityLevel goal targets createdAt')
     .lean();
   if (!user) throw new AppError(404, 'Không tìm thấy người dùng');
 
-  const [latestMetric, mealCount, scanCount, lastMeal, lastScan] = await Promise.all([
+  const [latestMetric, mealCount, scanCount, lastMeal, lastScan, recentMeals] = await Promise.all([
     BodyMetric.findOne({ userId: id }).sort({ recordedAt: -1 }).lean(),
     Meal.countDocuments({ userId: id }),
     AiPrediction.countDocuments({ userId: id }),
     Meal.findOne({ userId: id }).sort({ eatenAt: -1 }).select('eatenAt').lean(),
     AiPrediction.findOne({ userId: id }).sort({ createdAt: -1 }).select('createdAt').lean(),
+    Meal.find({ userId: id })
+      .sort({ eatenAt: -1 })
+      .limit(5)
+      .select('_id mealType eatenAt note totals.kcal')
+      .lean(),
   ]);
 
   const dates = [lastMeal?.eatenAt, lastScan?.createdAt, user.createdAt]
@@ -73,6 +92,7 @@ export async function getUserDetail(id) {
 
   return {
     ...user,
+    note: serializeNote(user.note),
     latestMetric: latestMetric
       ? { heightCm: latestMetric.heightCm, weightKg: latestMetric.weightKg, recordedAt: latestMetric.recordedAt }
       : null,
@@ -81,6 +101,13 @@ export async function getUserDetail(id) {
       scanCount,
       lastActiveAt,
     },
+    recentMeals: recentMeals.map((m) => ({
+      _id: m._id,
+      mealType: m.mealType,
+      eatenAt: m.eatenAt,
+      note: m.note || '',
+      kcal: m.totals?.kcal ?? 0,
+    })),
   };
 }
 
@@ -172,4 +199,33 @@ export async function updateUser(adminId, id, payload) {
     role: user.role,
     isActive: user.isActive,
   };
+}
+
+export async function resetUserPassword(adminId, id, payload) {
+  if (!mongoose.isValidObjectId(id)) throw new AppError(400, 'ID người dùng không hợp lệ');
+
+  const rawPassword = payload?.newPassword;
+  if (typeof rawPassword !== 'string' || rawPassword.length < 6 || rawPassword.length > 128) {
+    throw new AppError(400, 'Mật khẩu mới phải có độ dài từ 6 đến 128 ký tự');
+  }
+
+  const user = await User.findById(id).select('_id email role');
+  if (!user) throw new AppError(404, 'Không tìm thấy người dùng');
+
+  if (user.role === 'admin' && String(user._id) !== String(adminId)) {
+    throw new AppError(403, 'Không thể đặt lại mật khẩu của quản trị viên khác');
+  }
+
+  user.passwordHash = await bcrypt.hash(rawPassword, 10);
+  await user.save();
+
+  await recordAuditLog({
+    adminId,
+    action: 'RESET_USER_PASSWORD',
+    targetType: 'User',
+    targetId: user._id,
+    summary: `Đặt lại mật khẩu cho tài khoản: ${user.email}`,
+  });
+
+  return { ok: true, message: 'Đã đặt lại mật khẩu thành công' };
 }

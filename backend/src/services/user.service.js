@@ -1,8 +1,91 @@
+import fs from 'fs';
+import path from 'path';
 import User from '../models/User.js';
 import BodyMetric from '../models/BodyMetric.js';
 import Meal from '../models/Meal.js';
 import MealItem from '../models/MealItem.js';
 import AppError from '../utils/AppError.js';
+
+const AVATAR_DIR = path.resolve(process.cwd(), 'public/avatars');
+
+function safeDeleteAvatar(avatarUrl) {
+  if (!avatarUrl || typeof avatarUrl !== 'string') return;
+  if (!avatarUrl.startsWith('/avatars/')) return;
+  const filename = path.basename(avatarUrl);
+  const resolved = path.resolve(AVATAR_DIR, filename);
+  if (resolved.startsWith(AVATAR_DIR + path.sep) && fs.existsSync(resolved)) {
+    try {
+      fs.unlinkSync(resolved);
+    } catch {
+      // ignore delete error
+    }
+  }
+}
+
+function hasValidImageMagicBytes(filePath) {
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(12);
+    const bytesRead = fs.readSync(fd, buf, 0, 12, 0);
+    if (bytesRead < 3) return false;
+    if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;
+    if (
+      bytesRead >= 8 &&
+      buf[0] === 0x89 &&
+      buf[1] === 0x50 &&
+      buf[2] === 0x4e &&
+      buf[3] === 0x47 &&
+      buf[4] === 0x0d &&
+      buf[5] === 0x0a &&
+      buf[6] === 0x1a &&
+      buf[7] === 0x0a
+    ) {
+      return true;
+    }
+    if (bytesRead >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
+
+function detectStoryMediaType(filePath) {
+  if (hasValidImageMagicBytes(filePath)) return 'image';
+  let fd;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(16);
+    const bytesRead = fs.readSync(fd, buf, 0, 16, 0);
+    if (bytesRead >= 8) {
+      const boxType = buf.toString('ascii', 4, 8);
+      if (boxType === 'ftyp' || boxType === 'moov' || boxType === 'mdat' || boxType === 'wide') {
+        return 'video';
+      }
+    }
+    // WebM / Matroska EBML magic bytes: 1A 45 DF A3
+    if (bytesRead >= 4 && buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) {
+      return 'video';
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+  }
+}
 
 export function calculateNutritionTargets({ weightKg, heightCm, gender, birthYear, activityLevel, goal }) {
   if (!weightKg || !heightCm || !birthYear) return null;
@@ -60,11 +143,23 @@ export function calculateNutritionTargets({ weightKg, heightCm, gender, birthYea
   };
 }
 
+export function getActiveUserNote(user) {
+  if (!user?.note?.text || !user?.note?.expiresAt) return undefined;
+  if (new Date(user.note.expiresAt).getTime() <= Date.now()) return undefined;
+  return {
+    text: user.note.text,
+    createdAt: user.note.createdAt,
+    expiresAt: user.note.expiresAt,
+  };
+}
+
 export function formatUserProfile(user, metric = null) {
   return {
     id: user._id,
     email: user.email,
     fullName: user.fullName,
+    avatarUrl: user.avatarUrl || undefined,
+    note: getActiveUserNote(user),
     role: user.role,
     gender: user.gender,
     birthYear: user.birthYear,
@@ -85,6 +180,67 @@ export function formatUserProfile(user, metric = null) {
 export async function getProfile(userId) {
   const user = await User.findById(userId);
   if (!user) throw new AppError(404, 'Không tìm thấy người dùng');
+  const latestMetric = await BodyMetric.findOne({ userId }).sort({ recordedAt: -1 });
+  return formatUserProfile(user, latestMetric);
+}
+
+export async function upsertNote(userId, payload = {}) {
+  const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+  if (!text) {
+    throw new AppError(400, 'Vui lòng nhập nội dung ghi chú');
+  }
+  if (text.length > 60) {
+    throw new AppError(400, 'Ghi chú tối đa 60 ký tự');
+  }
+
+  const user = await User.findById(userId);
+  if (!user) throw new AppError(404, 'Không tìm thấy người dùng');
+
+  const now = new Date();
+  user.note = {
+    text,
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+  };
+  await user.save();
+
+  const latestMetric = await BodyMetric.findOne({ userId }).sort({ recordedAt: -1 });
+  return formatUserProfile(user, latestMetric);
+}
+
+export async function deleteNote(userId) {
+  const user = await User.findById(userId);
+  if (!user) throw new AppError(404, 'Không tìm thấy người dùng');
+
+  user.note = undefined;
+  await user.save();
+
+  const latestMetric = await BodyMetric.findOne({ userId }).sort({ recordedAt: -1 });
+  return formatUserProfile(user, latestMetric);
+}
+
+export async function updateAvatar(userId, file) {
+  if (!file) throw new AppError(400, 'Vui lòng chọn file ảnh đại diện');
+
+  if (!hasValidImageMagicBytes(file.path)) {
+    safeDeleteAvatar(`/avatars/${file.filename}`);
+    throw new AppError(400, 'File tải lên không phải ảnh hợp lệ (chỉ nhận JPEG, PNG, WEBP)');
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    safeDeleteAvatar(`/avatars/${file.filename}`);
+    throw new AppError(404, 'Không tìm thấy người dùng');
+  }
+
+  const oldAvatar = user.avatarUrl;
+  user.avatarUrl = `/avatars/${file.filename}`;
+  await user.save();
+
+  if (oldAvatar && oldAvatar !== user.avatarUrl) {
+    safeDeleteAvatar(oldAvatar);
+  }
+
   const latestMetric = await BodyMetric.findOne({ userId }).sort({ recordedAt: -1 });
   return formatUserProfile(user, latestMetric);
 }

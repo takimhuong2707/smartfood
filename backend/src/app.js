@@ -7,6 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/food-images', express.static('public/food-images'));
+app.use('/avatars', express.static('public/avatars'));
 
 app.use('/api', routes);
 

@@ -7,6 +7,11 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     fullName: { type: String, required: true, trim: true },
     avatarUrl: String,
+    note: {
+      text: { type: String, trim: true, maxlength: 60 },
+      createdAt: Date,
+      expiresAt: Date,
+    },
     gender: { type: String, enum: ['male', 'female'] },
     birthYear: Number,
     activityLevel: {

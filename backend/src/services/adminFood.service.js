@@ -81,9 +81,10 @@ function validateNutrition(raw) {
     throw new AppError(400, 'Thiếu thông tin dinh dưỡng');
   }
   const kcal = Number(raw.kcal);
-  const protein = raw.protein !== undefined ? Number(raw.protein) : 0;
-  const carb = raw.carb !== undefined ? Number(raw.carb) : 0;
-  const fat = raw.fat !== undefined ? Number(raw.fat) : 0;
+  const protein = raw.protein !== undefined && raw.protein !== '' ? Number(raw.protein) : 0;
+  const carb = raw.carb !== undefined && raw.carb !== '' ? Number(raw.carb) : 0;
+  const fat = raw.fat !== undefined && raw.fat !== '' ? Number(raw.fat) : 0;
+  const fiber = raw.fiber !== undefined && raw.fiber !== '' ? Number(raw.fiber) : 0;
 
   if (!Number.isFinite(kcal) || kcal < 0 || kcal > 5000) {
     throw new AppError(400, 'Calo phải là số từ 0 đến 5000');
@@ -97,13 +98,45 @@ function validateNutrition(raw) {
       throw new AppError(400, `${label} phải là số từ 0 đến 500`);
     }
   }
-  return { kcal, protein, carb, fat };
+  if (!Number.isFinite(fiber) || fiber < 0 || fiber > 200) {
+    throw new AppError(400, 'Chất xơ (fiber) phải là số từ 0 đến 200');
+  }
+  return { kcal, protein, carb, fat, fiber };
 }
 
-export async function listFoods({ search = '', source = '', hasAiClass = '', page = 1, limit = 20 }) {
+function buildServingSizes(rawGrams, fallback = 500) {
+  const num =
+    rawGrams !== undefined && rawGrams !== null && rawGrams !== ''
+      ? Math.round(Number(rawGrams))
+      : fallback;
+  if (!Number.isFinite(num) || num < 10 || num > 5000) {
+    throw new AppError(400, 'Khẩu phần chuẩn (gram) phải là số từ 10 đến 5000');
+  }
+  const small = Math.round(num * 0.75);
+  const large = Math.round(num * 1.25);
+  return [
+    { label: `Nhỏ ${small}g`, grams: small, isDefault: false },
+    { label: `Vừa ${num}g`, grams: num, isDefault: true },
+    { label: `Lớn ${large}g`, grams: large, isDefault: false },
+  ];
+}
+
+export async function listFoods({
+  search = '',
+  source = '',
+  hasAiClass = '',
+  isActive = 'true',
+  page = 1,
+  limit = 20,
+}) {
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.min(50, Math.max(1, Number(limit) || 20));
-  const filter = { isActive: { $ne: false } };
+  const filter = {};
+  if (isActive === 'false') {
+    filter.isActive = false;
+  } else if (isActive !== 'all') {
+    filter.isActive = { $ne: false };
+  }
 
   if (typeof search === 'string' && search.trim()) {
     filter.name = { $regex: escapeRegex(search.trim()), $options: 'i' };
@@ -149,6 +182,7 @@ export async function createFood(adminId, payload) {
   if (!name) throw new AppError(400, 'Tên món ăn không được để trống');
 
   const nutritionPer100g = validateNutrition(payload.nutritionPer100g);
+  const servingSizes = buildServingSizes(payload.standardServingGrams, 500);
 
   let aiClassId;
   if (typeof payload.aiClassId === 'string' && payload.aiClassId.trim()) {
@@ -173,6 +207,7 @@ export async function createFood(adminId, payload) {
     mealTime: typeof payload.mealTime === 'string' ? payload.mealTime.trim() : undefined,
     imageUrl: typeof payload.imageUrl === 'string' ? payload.imageUrl.trim() : undefined,
     nutritionPer100g,
+    servingSizes,
     isActive: true,
   });
 
@@ -216,6 +251,9 @@ export async function updateFood(adminId, id, payload) {
 
   if (payload.nutritionPer100g !== undefined) {
     food.nutritionPer100g = validateNutrition(payload.nutritionPer100g);
+  }
+  if (payload.standardServingGrams !== undefined && payload.standardServingGrams !== '') {
+    food.servingSizes = buildServingSizes(payload.standardServingGrams);
   }
   if (typeof payload.ingredients === 'string') food.ingredients = payload.ingredients.trim();
   if (typeof payload.cookingMethod === 'string') food.cookingMethod = payload.cookingMethod.trim();
@@ -277,6 +315,31 @@ export async function deleteFood(adminId, id) {
   });
 
   return { deleted: true, message: 'Đã xóa món ăn vĩnh viễn' };
+}
+
+export async function restoreFood(adminId, id) {
+  if (!mongoose.isValidObjectId(id)) throw new AppError(400, 'ID món ăn không hợp lệ');
+  const food = await Food.findById(id);
+  if (!food) throw new AppError(404, 'Không tìm thấy món ăn');
+
+  if (food.isActive !== false) {
+    return { restored: true, message: 'Món ăn đang ở trạng thái hoạt động', food };
+  }
+
+  food.isActive = true;
+  food.deletedAt = undefined;
+  await food.save();
+
+  invalidateFoodsCache();
+  await recordAuditLog({
+    adminId,
+    action: 'RESTORE_FOOD',
+    targetType: 'Food',
+    targetId: food._id,
+    summary: `Khôi phục món ăn đã ẩn: ${food.name}`,
+  });
+
+  return { restored: true, message: 'Đã khôi phục món ăn thành công', food };
 }
 
 export async function updateFoodImage(adminId, id, file) {

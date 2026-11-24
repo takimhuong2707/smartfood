@@ -1,5 +1,6 @@
-import { Platform } from 'react-native';
 import { api } from '@/utils/api';
+import { uploadMultipart } from '@/utils/upload';
+import type { UserNote } from '@/types/auth';
 
 export type AdminPingResponse = {
   ok: boolean;
@@ -26,6 +27,7 @@ export type AdminFood = {
   mealTime?: string;
   imageUrl?: string;
   nutritionPer100g: AdminFoodNutrition;
+  servingSizes?: { label: string; grams: number; isDefault?: boolean }[];
   isActive?: boolean;
   createdAt?: string;
 };
@@ -46,6 +48,7 @@ export type AdminFoodInput = {
   ingredients?: string;
   cookingMethod?: string;
   mealTime?: string;
+  standardServingGrams?: number;
   nutritionPer100g: AdminFoodNutrition;
 };
 
@@ -59,6 +62,8 @@ export type AdminUserItem = {
   _id: string;
   email: string;
   fullName: string;
+  avatarUrl?: string;
+  note?: UserNote;
   role: 'user' | 'admin';
   isActive: boolean;
   createdAt: string;
@@ -86,6 +91,13 @@ export type AdminUserDetail = AdminUserItem & {
     scanCount: number;
     lastActiveAt: string | null;
   };
+  recentMeals?: {
+    _id: string;
+    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack' | string;
+    eatenAt: string;
+    note: string;
+    kcal: number;
+  }[];
 };
 
 export type AdminStatsResponse = {
@@ -114,6 +126,26 @@ export type AdminStatsResponse = {
     avgConfidence: number;
     correctionRate: number;
   };
+  chatbot?: {
+    totalQuestions: number;
+    rangeQuestions: number;
+    activeUsers: number;
+  };
+};
+
+export type AdminServiceHealthItem = {
+  status: 'online' | 'offline' | 'unconfigured';
+  latencyMs: number | null;
+  detail: string;
+  foods?: number | null;
+  device?: string | null;
+  knowledgeCount?: number | null;
+};
+
+export type AdminServicesHealthResponse = {
+  checkedAt: string;
+  vision: AdminServiceHealthItem;
+  chatbot: AdminServiceHealthItem;
 };
 
 export type AdminFeedbackItem = {
@@ -135,11 +167,15 @@ export type AdminFeedbackListResponse = {
 export type AdminPredictionTop3 = {
   classId: string;
   confidence: number;
+  k?: number;
+  grams?: number;
 };
 
 export type AdminPredictionItem = {
   _id: string;
   modelVersion?: string;
+  bowlCount?: number;
+  detected?: boolean;
   top3: AdminPredictionTop3[];
   inferenceMs?: number;
   status: 'pending' | 'confirmed' | 'discarded';
@@ -162,6 +198,30 @@ export type ExportJsonResponse = {
   meta: { totalRows: number; skippedCustomFood: number; truncated: boolean };
 };
 
+export type AdminAuditLogItem = {
+  _id: string;
+  action: string;
+  targetType: 'Food' | 'User' | 'Feedback' | 'AiPrediction' | string;
+  targetId: string;
+  summary: string;
+  createdAt: string;
+  admin: {
+    _id: string;
+    fullName: string;
+    email: string;
+  } | null;
+};
+
+export type AdminAuditLogListResponse = {
+  items: AdminAuditLogItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 export const adminService = {
   ping: async (): Promise<AdminPingResponse> => {
     const res = await api.get<AdminPingResponse>('/admin/ping');
@@ -172,6 +232,7 @@ export const adminService = {
     search?: string;
     source?: string;
     hasAiClass?: string;
+    isActive?: string;
     page?: number;
     limit?: number;
   }): Promise<AdminFoodListResponse> => {
@@ -199,25 +260,19 @@ export const adminService = {
     return res.data;
   },
 
-  uploadFoodImage: async (id: string, imageUri: string): Promise<AdminFood> => {
-    const formData = new FormData();
-    if (Platform.OS === 'web') {
-      const res = await fetch(imageUri);
-      const blob = await res.blob();
-      formData.append('image', blob, 'food.jpg');
-    } else {
-      const filePart = {
-        uri: imageUri,
-        name: 'food.jpg',
-        type: 'image/jpeg',
-      } as unknown as Blob;
-      formData.append('image', filePart);
-    }
-
-    const res = await api.post<AdminFood>(`/admin/foods/${id}/image`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  restoreFood: async (id: string): Promise<{ restored: boolean; message: string; food: AdminFood }> => {
+    const res = await api.patch<{ restored: boolean; message: string; food: AdminFood }>(
+      `/admin/foods/${id}/restore`
+    );
     return res.data;
+  },
+
+  uploadFoodImage: async (id: string, imageUri: string): Promise<AdminFood> => {
+    return uploadMultipart<AdminFood>({
+      endpoint: `/admin/foods/${id}/image`,
+      fieldName: 'image',
+      imageUri,
+    });
   },
 
   getUsers: async (params: {
@@ -244,10 +299,26 @@ export const adminService = {
     return res.data;
   },
 
+  resetUserPassword: async (
+    id: string,
+    newPassword: string
+  ): Promise<{ ok: boolean; message: string }> => {
+    const res = await api.post<{ ok: boolean; message: string }>(
+      `/admin/users/${id}/reset-password`,
+      { newPassword }
+    );
+    return res.data;
+  },
+
   getStats: async (range: 7 | 30, refresh = false): Promise<AdminStatsResponse> => {
     const res = await api.get<AdminStatsResponse>('/admin/stats', {
       params: { range, ...(refresh ? { refresh: '1' } : {}) },
     });
+    return res.data;
+  },
+
+  getServicesHealth: async (): Promise<AdminServicesHealthResponse> => {
+    const res = await api.get<AdminServicesHealthResponse>('/admin/services-health');
     return res.data;
   },
 
@@ -297,6 +368,39 @@ export const adminService = {
     const res = await api.get<ExportJsonResponse>('/admin/predictions/export', {
       params: { ...params, format: 'json', limit: params.limit ?? 1000 },
     });
+    return res.data;
+  },
+
+  exportPredictionsCsv: async (params?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<{
+    csv: string;
+    meta: { totalRows: number; skippedCustomFood: number; truncated: boolean };
+  }> => {
+    const res = await api.get<string>('/admin/predictions/export', {
+      params: { ...params, format: 'csv', limit: params?.limit ?? 5000 },
+      responseType: 'text',
+    });
+    return {
+      csv: typeof res.data === 'string' ? res.data : String(res.data ?? ''),
+      meta: {
+        totalRows: Number(res.headers['x-total-rows'] ?? 0),
+        skippedCustomFood: Number(res.headers['x-skipped-custom-food'] ?? 0),
+        truncated: res.headers['x-truncated'] === 'true',
+      },
+    };
+  },
+
+  getAuditLogs: async (params: {
+    targetType?: string;
+    action?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<AdminAuditLogListResponse> => {
+    const res = await api.get<AdminAuditLogListResponse>('/admin/audit-logs', { params });
     return res.data;
   },
 };

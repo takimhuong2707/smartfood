@@ -43,6 +43,8 @@ export default function AdminFoodFormScreen() {
   const [protein, setProtein] = useState('');
   const [carb, setCarb] = useState('');
   const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
+  const [servingGrams, setServingGrams] = useState('500');
   const [aiClassId, setAiClassId] = useState('');
   const [hasLockedAiClass, setHasLockedAiClass] = useState(false);
   const [ingredients, setIngredients] = useState('');
@@ -61,6 +63,9 @@ export default function AdminFoodFormScreen() {
         setProtein(String(food.nutritionPer100g?.protein ?? ''));
         setCarb(String(food.nutritionPer100g?.carb ?? ''));
         setFat(String(food.nutritionPer100g?.fat ?? ''));
+        setFiber(food.nutritionPer100g?.fiber !== undefined ? String(food.nutritionPer100g.fiber) : '');
+        const std = food.servingSizes?.find((sv) => sv.isDefault)?.grams;
+        setServingGrams(std ? String(std) : '500');
         setAiClassId(food.aiClassId || '');
         setHasLockedAiClass(Boolean(food.aiClassId));
         setIngredients(food.ingredients || '');
@@ -100,6 +105,15 @@ export default function AdminFoodFormScreen() {
     try {
       let targetId = createdFoodId;
 
+      const parsedServing = servingGrams.trim() ? Number(servingGrams.trim()) : 500;
+      const nutritionPayload = {
+        kcal: Number(kcal),
+        protein: protein ? Number(protein) : 0,
+        carb: carb ? Number(carb) : 0,
+        fat: fat ? Number(fat) : 0,
+        fiber: fiber ? Number(fiber) : 0,
+      };
+
       if (!targetId) {
         const created = await adminService.createFood({
           name: name.trim(),
@@ -107,12 +121,8 @@ export default function AdminFoodFormScreen() {
           ingredients: ingredients.trim() || undefined,
           cookingMethod: cookingMethod.trim() || undefined,
           mealTime: mealTime.trim() || undefined,
-          nutritionPer100g: {
-            kcal: Number(kcal),
-            protein: protein ? Number(protein) : 0,
-            carb: carb ? Number(carb) : 0,
-            fat: fat ? Number(fat) : 0,
-          },
+          standardServingGrams: parsedServing,
+          nutritionPer100g: nutritionPayload,
         });
         targetId = created._id;
         setCreatedFoodId(targetId);
@@ -123,12 +133,8 @@ export default function AdminFoodFormScreen() {
           ingredients: ingredients.trim() || undefined,
           cookingMethod: cookingMethod.trim() || undefined,
           mealTime: mealTime.trim() || undefined,
-          nutritionPer100g: {
-            kcal: Number(kcal),
-            protein: protein ? Number(protein) : 0,
-            carb: carb ? Number(carb) : 0,
-            fat: fat ? Number(fat) : 0,
-          },
+          standardServingGrams: parsedServing,
+          nutritionPer100g: nutritionPayload,
         });
       }
 
@@ -231,6 +237,29 @@ export default function AdminFoodFormScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Field label="Béo (g)" icon="water-outline" value={fat} onChangeText={setFat} keyboardType="numeric" placeholder="0" />
+          </View>
+        </View>
+
+        <View style={s.row}>
+          <View style={{ flex: 1 }}>
+            <Field
+              label="Chất xơ (g/100g)"
+              icon="flower-outline"
+              value={fiber}
+              onChangeText={setFiber}
+              keyboardType="numeric"
+              placeholder="0"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Field
+              label="Khẩu phần chuẩn (g)"
+              icon="scale-outline"
+              value={servingGrams}
+              onChangeText={setServingGrams}
+              keyboardType="numeric"
+              placeholder="500"
+            />
           </View>
         </View>
 

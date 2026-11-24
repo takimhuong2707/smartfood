@@ -3,6 +3,8 @@ import Meal from '../models/Meal.js';
 import MealItem from '../models/MealItem.js';
 import AiPrediction from '../models/AiPrediction.js';
 import Feedback from '../models/Feedback.js';
+import ChatMessage from '../models/ChatMessage.js';
+import { env } from '../config/env.js';
 import AppError from '../utils/AppError.js';
 
 const CACHE_TTL_MS = 60 * 1000;
@@ -54,6 +56,9 @@ export async function getAdminStats({ range = '7', refresh = '0' }) {
     topFoodsAgg,
     aiQualityAgg,
     mealCorrectionAgg,
+    totalChatQuestions,
+    rangeChatQuestions,
+    chatUserIds,
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ isActive: true }),
@@ -119,6 +124,9 @@ export async function getAdminStats({ range = '7', refresh = '0' }) {
         },
       },
     ]),
+    ChatMessage.countDocuments({ role: 'user' }),
+    ChatMessage.countDocuments({ role: 'user', createdAt: { $gte: startDate } }),
+    ChatMessage.distinct('userId', { role: 'user', createdAt: { $gte: startDate } }),
   ]);
 
   const uMap = new Map(dailyUsersAgg.map((d) => [d._id, d.count]));
@@ -154,8 +162,94 @@ export async function getAdminStats({ range = '7', refresh = '0' }) {
       avgConfidence,
       correctionRate,
     },
+    chatbot: {
+      totalQuestions: totalChatQuestions,
+      rangeQuestions: rangeChatQuestions,
+      activeUsers: chatUserIds.length,
+    },
   };
 
   statsCache.set(days, { ts: Date.now(), data });
   return { ...data, cached: false };
+}
+
+export async function checkAiServicesHealth() {
+  const checkVision = async () => {
+    const start = Date.now();
+    try {
+      const res = await fetch(`${env.aiUrl.replace(/\/+$/, '')}/health`, {
+        signal: AbortSignal.timeout(3500),
+      });
+      const latencyMs = Date.now() - start;
+      if (!res.ok) {
+        return {
+          status: 'offline',
+          latencyMs,
+          detail: `HTTP ${res.status}`,
+        };
+      }
+      const data = await res.json();
+      return {
+        status: data?.ok ? 'online' : 'offline',
+        latencyMs,
+        foods: data?.foods ?? null,
+        detail: data?.foods ? `Sẵn sàng (${data.foods} lớp món • 3 models)` : 'Đang hoạt động',
+      };
+    } catch {
+      return {
+        status: 'offline',
+        latencyMs: Date.now() - start,
+        detail: 'Không kết nối được FastAPI (kiểm tra port 8000)',
+      };
+    }
+  };
+
+  const checkChatbot = async () => {
+    const rawUrl = (process.env.CHATBOT_URL || '').trim().replace(/\/+$/, '');
+    if (!rawUrl) {
+      return {
+        status: 'unconfigured',
+        latencyMs: null,
+        detail: 'Chưa cấu hình CHATBOT_URL trong backend/.env',
+      };
+    }
+    const start = Date.now();
+    try {
+      const res = await fetch(`${rawUrl}/health`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+        signal: AbortSignal.timeout(4500),
+      });
+      const latencyMs = Date.now() - start;
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const isNgrokOff = res.headers.get('ngrok-error-code') || text.includes('ERR_NGROK_3200');
+        return {
+          status: 'offline',
+          latencyMs,
+          detail: isNgrokOff ? 'Phiên Colab / ngrok đã tắt (ERR_NGROK_3200)' : `HTTP ${res.status}`,
+        };
+      }
+      const data = await res.json();
+      return {
+        status: data?.ok ? 'online' : 'offline',
+        latencyMs,
+        device: data?.device ?? null,
+        knowledgeCount: data?.knowledge_count ?? null,
+        detail: `Sẵn sàng (${String(data?.device || 'cpu').toUpperCase()} • ${data?.knowledge_count ?? 0} tri thức RAG)`,
+      };
+    } catch {
+      return {
+        status: 'offline',
+        latencyMs: Date.now() - start,
+        detail: 'Không phản hồi hoặc đường dẫn ngrok hết hạn',
+      };
+    }
+  };
+
+  const [vision, chatbot] = await Promise.all([checkVision(), checkChatbot()]);
+  return {
+    checkedAt: new Date().toISOString(),
+    vision,
+    chatbot,
+  };
 }

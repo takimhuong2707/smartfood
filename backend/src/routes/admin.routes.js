@@ -9,6 +9,7 @@ import * as foodCtrl from '../controllers/adminFood.controller.js';
 import * as userCtrl from '../controllers/adminUser.controller.js';
 import * as statsCtrl from '../controllers/adminStats.controller.js';
 import * as aiCtrl from '../controllers/adminAi.controller.js';
+import * as auditCtrl from '../controllers/adminAudit.controller.js';
 import AppError from '../utils/AppError.js';
 
 const ADMIN_IMAGE_DIR = path.resolve(process.cwd(), 'public/food-images/admin');
@@ -63,14 +64,17 @@ router.get('/foods', foodCtrl.listFoods);
 router.get('/foods/:id', foodCtrl.getFoodById);
 router.post('/foods', foodCtrl.createFood);
 router.put('/foods/:id', foodCtrl.updateFood);
+router.patch('/foods/:id/restore', foodCtrl.restoreFood);
 router.delete('/foods/:id', foodCtrl.deleteFood);
 router.post('/foods/:id/image', handleUpload, foodCtrl.uploadFoodImage);
 
 router.get('/users', userCtrl.listUsers);
 router.get('/users/:id', userCtrl.getUserDetail);
 router.patch('/users/:id', userCtrl.updateUser);
+router.post('/users/:id/reset-password', adminHeavyLimiter, userCtrl.resetUserPassword);
 
 router.get('/stats', adminStatsRefreshLimiter, statsCtrl.getStats);
+router.get('/services-health', statsCtrl.getServicesHealth);
 
 router.get('/feedbacks', aiCtrl.listFeedbacks);
 router.get('/feedbacks/:id', aiCtrl.getFeedbackById);
@@ -79,5 +83,7 @@ router.patch('/feedbacks/:id', aiCtrl.updateFeedback);
 router.get('/predictions/export', adminHeavyLimiter, aiCtrl.exportPredictions);
 router.get('/predictions', aiCtrl.listPredictions);
 router.get('/predictions/:id', aiCtrl.getPredictionById);
+
+router.get('/audit-logs', auditCtrl.listAuditLogs);
 
 export default router;

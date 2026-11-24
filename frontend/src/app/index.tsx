@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,14 +18,17 @@ import WeekCalendar from '@/components/ui/WeekCalendar';
 import GoalRoadmapSection from '@/components/ui/GoalRoadmapSection';
 import CircularNutrition from '@/components/ui/CircularNutrition';
 import BottomNav from '@/components/ui/BottomNav';
+import UserAvatar from '@/components/ui/UserAvatar';
+import StoryModal, { type AvatarModalMode } from '@/components/ui/StoryModal';
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [storyMode, setStoryMode] = useState<AvatarModalMode>('closed');
 
   const [summary, setSummary] = useState<TodaySummary>({
     targets: {
@@ -84,10 +88,18 @@ export default function HomeScreen() {
         style={s.scrollView}
         contentContainerStyle={[s.content, { paddingTop: insets.top + 12 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={loadingSummary}
+            onRefresh={() => loadSummary(selectedDate)}
+            tintColor="#1E5136"
+            colors={['#1E5136']}
+          />
+        }
       >
-        {/* Header: Greeting & Notification */}
+        {/* Header: Greeting & User Avatar */}
         <View style={s.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.dateText}>{getDisplayDate()}</Text>
             <Text style={s.greetingText}>
               Xin chào, <Text style={s.nameBold}>{user?.fullName || 'Bạn'}</Text>
@@ -95,10 +107,19 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity
             style={s.bellButton}
-            activeOpacity={0.8}
-            onPress={() => loadSummary(selectedDate)}
+            activeOpacity={0.85}
+            onPress={() => setStoryMode('menu')}
           >
-            <Ionicons name="refresh" size={20} color="#1B2A22" />
+            <UserAvatar
+              uri={user?.avatarUrl}
+              name={user?.fullName}
+              size={46}
+              borderRadius={23}
+              noteText={user?.note?.text}
+              showNotePrompt
+              noteAlign="right"
+              showEditBadge
+            />
           </TouchableOpacity>
         </View>
 
@@ -307,6 +328,17 @@ export default function HomeScreen() {
         )}
       </ScrollView>
 
+      <StoryModal
+        mode={storyMode}
+        onClose={() => setStoryMode('closed')}
+        onChangeMode={setStoryMode}
+        targetUser={user}
+        isOwnProfile
+        showGoProfileOption
+        onGoProfile={() => router.push('/profile' as any)}
+        onUserUpdated={updateUser}
+      />
+
       {/* Persistent Bottom Navigation */}
       <BottomNav activeTab="home" />
     </View>
@@ -330,7 +362,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
-    marginTop: 4,
+    marginTop: 18,
   },
   dateText: {
     fontSize: 13,

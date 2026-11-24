@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { adminService, type AdminUserItem } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
 import ErrorBox from '@/components/ui/ErrorBox';
+import UserAvatar from '@/components/ui/UserAvatar';
 
 const FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -181,9 +182,12 @@ export default function AdminUsersScreen() {
               activeOpacity={0.8}
               onPress={() => router.push(`/admin/user-detail?id=${item._id}` as Href)}
             >
-              <View style={s.avatar}>
-                <Ionicons name="person-outline" size={20} color={COLORS.primary} />
-              </View>
+              <UserAvatar
+                uri={item.avatarUrl}
+                name={item.fullName}
+                size={42}
+                borderRadius={21}
+              />
               <View style={s.info}>
                 <View style={s.nameRow}>
                   <Text style={s.name} numberOfLines={1}>
@@ -203,6 +207,11 @@ export default function AdminUsersScreen() {
                 <Text style={s.email} numberOfLines={1}>
                   {item.email}
                 </Text>
+                {item.note?.text ? (
+                  <Text style={s.noteSnippet} numberOfLines={1}>
+                    💬 “{item.note.text}”
+                  </Text>
+                ) : null}
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
             </TouchableOpacity>
@@ -282,6 +291,7 @@ const s = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   name: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
   email: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  noteSnippet: { fontSize: 11.5, color: '#15803D', fontWeight: '600', marginTop: 3 },
   adminBadge: { backgroundColor: '#DCFCE7', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
   adminBadgeText: { fontSize: 10, fontWeight: '700', color: '#166534' },
   lockedBadge: { backgroundColor: '#FEE2E2', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },

@@ -12,3 +12,7 @@ export const getUserDetail = asyncHandler(async (req, res) => {
 export const updateUser = asyncHandler(async (req, res) => {
   res.json(await adminUserService.updateUser(req.user.id, req.params.id, req.body ?? {}));
 });
+
+export const resetUserPassword = asyncHandler(async (req, res) => {
+  res.json(await adminUserService.resetUserPassword(req.user.id, req.params.id, req.body ?? {}));
+});

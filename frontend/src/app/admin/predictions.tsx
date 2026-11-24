@@ -1,20 +1,21 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import axios from 'axios';
 import { COLORS } from '@/constants';
-import { useAuth } from '@/hooks/useAuth';
 import { adminService, type AdminPredictionItem } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
 import ErrorBox from '@/components/ui/ErrorBox';
@@ -30,9 +31,10 @@ type FilterKey = (typeof FILTERS)[number]['key'];
 export default function AdminPredictionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { logout, refreshUser } = useAuth();
 
   const [items, setItems] = useState<AdminPredictionItem[]>([]);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -42,6 +44,14 @@ export default function AdminPredictionsScreen() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const fetchList = useCallback(
     async (targetPage: number, isRefresh = false) => {
       try {
@@ -50,6 +60,7 @@ export default function AdminPredictionsScreen() {
         setError(null);
 
         const res = await adminService.getPredictions({
+          predictedClass: debouncedSearch.trim() || undefined,
           correctedOnly: filter === 'corrected' ? 'true' : undefined,
           maxConfidence: filter === 'low' ? '0.7' : undefined,
           page: targetPage,
@@ -58,16 +69,6 @@ export default function AdminPredictionsScreen() {
         setTotalPages(res.pagination.totalPages);
         setItems((prev) => (targetPage === 1 ? res.items : [...prev, ...res.items]));
       } catch (e) {
-        if (axios.isAxiosError(e)) {
-          if (e.response?.status === 401) {
-            await logout();
-            return;
-          }
-          if (e.response?.status === 403) {
-            await refreshUser();
-            return;
-          }
-        }
         setError(getErrorMessage(e));
       } finally {
         setLoading(false);
@@ -75,7 +76,7 @@ export default function AdminPredictionsScreen() {
         setLoadingMore(false);
       }
     },
-    [filter, logout, refreshUser]
+    [debouncedSearch, filter]
   );
 
   useFocusEffect(
@@ -85,17 +86,49 @@ export default function AdminPredictionsScreen() {
     }, [fetchList])
   );
 
-  const handleExport = async () => {
+  const handleExportCsv = async () => {
     if (exporting) return;
     try {
       setExporting(true);
-      const res = await adminService.exportPredictionsJson({ limit: 1000 });
-      Alert.alert(
-        'Xuất dataset thành công',
-        `Số dòng: ${res.meta.totalRows}\nBỏ qua món tự thêm: ${res.meta.skippedCustomFood}\nCắt giới hạn: ${res.meta.truncated ? 'Có' : 'Không'}`
-      );
+      const { csv, meta } = await adminService.exportPredictionsCsv({ limit: 5000 });
+
+      if (meta.totalRows === 0) {
+        Alert.alert(
+          'Chưa có dữ liệu xuất',
+          `Hiện chưa có ca dự đoán nào được sửa sang món thuộc 30 lớp AI${
+            meta.skippedCustomFood > 0 ? ` (đã bỏ qua ${meta.skippedCustomFood} món tự thêm)` : ''
+          }.`
+        );
+        return;
+      }
+
+      const fileName = `smartfood_retrain_${new Date().toISOString().slice(0, 10)}.csv`;
+
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Alert.alert(
+          'Đã tải file CSV',
+          `Tệp: ${fileName}\nSố dòng xuất: ${meta.totalRows}\nBỏ qua món tự thêm: ${meta.skippedCustomFood}${
+            meta.truncated ? '\n(Đã giới hạn tối đa 5.000 dòng)' : ''
+          }`
+        );
+      } else {
+        await Share.share({
+          title: fileName,
+          message: csv,
+        });
+      }
     } catch (e) {
-      Alert.alert('Lỗi xuất dữ liệu', getErrorMessage(e));
+      Alert.alert('Lỗi xuất dữ liệu CSV', getErrorMessage(e));
     } finally {
       setExporting(false);
     }
@@ -111,9 +144,33 @@ export default function AdminPredictionsScreen() {
           <Ionicons name="arrow-back" size={20} color={COLORS.ink} />
         </TouchableOpacity>
         <Text style={s.title}>Giám sát AI</Text>
-        <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting}>
-          <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+        <TouchableOpacity style={s.exportBtn} onPress={handleExportCsv} disabled={exporting}>
+          {exporting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={16} color="#FFFFFF" />
+              <Text style={s.exportBtnText}>CSV</Text>
+            </>
+          )}
         </TouchableOpacity>
+      </View>
+
+      <View style={s.searchBox}>
+        <Ionicons name="search-outline" size={18} color={COLORS.muted} />
+        <TextInput
+          style={s.searchInput}
+          placeholder="Tìm theo lớp AI (vd: pho, bun_bo_hue)..."
+          placeholderTextColor={COLORS.placeholder}
+          value={search}
+          onChangeText={setSearch}
+          autoCapitalize="none"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={COLORS.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={s.filterRow}>
@@ -169,7 +226,11 @@ export default function AdminPredictionsScreen() {
           onEndReachedThreshold={0.4}
           renderItem={({ item }) => {
             const top1 = item.top3?.[0];
-            const confPct = top1 ? (top1.confidence <= 1 ? Math.round(top1.confidence * 100) : Math.round(top1.confidence)) : 0;
+            const confPct = top1
+              ? top1.confidence <= 1
+                ? Math.round(top1.confidence * 100)
+                : Math.round(top1.confidence)
+              : 0;
             return (
               <TouchableOpacity
                 style={s.card}
@@ -183,12 +244,16 @@ export default function AdminPredictionsScreen() {
                     <Text style={s.name}>{top1?.classId || '--'}</Text>
                     {item.isCorrected && (
                       <View style={s.correctedBadge}>
-                        <Text style={s.correctedText}>Đã sửa</Text>
+                        <Text style={s.correctedText}>
+                          Đã sửa{item.correctedFood?.name ? ` → ${item.correctedFood.name}` : ''}
+                        </Text>
                       </View>
                     )}
                   </View>
                   <Text style={s.meta}>
-                    Tin cậy: {confPct}% • {item.status}
+                    Tin cậy: {confPct}%
+                    {item.bowlCount ? ` • ${item.bowlCount} tô` : ''}
+                    {item.inferenceMs ? ` • ${item.inferenceMs}ms` : ''} • {item.status}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
@@ -224,13 +289,29 @@ const s = StyleSheet.create({
   },
   title: { flex: 1, fontSize: 20, fontWeight: '700', color: COLORS.ink },
   exportBtn: {
-    width: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
     height: 38,
     borderRadius: 19,
     backgroundColor: COLORS.primary,
-    alignItems: 'center',
     justifyContent: 'center',
   },
+  exportBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+    marginBottom: 10,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: COLORS.ink },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   chip: {
     paddingHorizontal: 12,
@@ -249,24 +330,29 @@ const s = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.card,
     borderRadius: 14,
-    padding: 10,
+    padding: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     gap: 10,
   },
   thumbBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   name: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
-  correctedBadge: { backgroundColor: '#FEF3C7', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  correctedText: { fontSize: 10, fontWeight: '700', color: '#B45309' },
-  meta: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  correctedBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  correctedText: { fontSize: 11, fontWeight: '700', color: '#B45309' },
+  meta: { fontSize: 12, color: COLORS.muted, marginTop: 3 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
   emptyText: { fontSize: 14, color: COLORS.muted },
 });
