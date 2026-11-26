@@ -14,6 +14,7 @@ router.use(auth); // Yêu cầu đăng nhập
 
 router.post('/predict', upload.single('image'), ctrl.predict);
 router.post('/save', ctrl.save);
+router.post('/feedback', ctrl.submitFeedback);
 router.get('/foods', ctrl.getFoods);
 
 export default router;

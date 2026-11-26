@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NutriLens - Rà soát ảnh món ăn</title>
+  <style>
+    :root {
+      --primary: #176B46;
+      --primary-light: #E8F3E9;
+      --bg: #F8FAF9;
+      --card-bg: #FFFFFF;
+      --text: #1F2937;
+      --text-muted: #6B7280;
+      --border: #E5E7EB;
+      --danger: #DC2626;
+      --warning: #D97706;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+    header {
+      max-width: 1200px;
+      margin: 0 auto 24px;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid var(--border);
+    }
+    h1 {
+      color: var(--primary);
+      font-size: 26px;
+      margin-bottom: 8px;
+    }
+    .stats-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .stat-pill {
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .stat-pill.pill-empty {
+      background: #F3F4F6;
+      color: var(--text-muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .img-container {
+      position: relative;
+      width: 100%;
+      height: 190px;
+      background: #E5E7EB;
+    }
+    .img-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .placeholder-box {
+      width: 100%;
+      height: 100%;
+      background: var(--primary-light);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--primary);
+    }
+    .placeholder-icon {
+      font-size: 38px;
+    }
+    .placeholder-text {
+      font-size: 13px;
+      text-align: center;
+      font-weight: 500;
+    }
+    .status-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-ok {
+      background: rgba(23, 107, 70, 0.9);
+      color: #FFFFFF;
+    }
+    .badge-empty {
+      background: rgba(107, 114, 128, 0.85);
+      color: #FFFFFF;
+    }
+    .card-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .name-vi {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .name-en {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .slug-code {
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .slug-code code {
+      background: #F3F4F6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #4B5563;
+    }
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .tag {
+      font-size: 11px;
+      background: #F3F4F6;
+      padding: 2px 8px;
+      border-radius: 10px;
+      color: #4B5563;
+    }
+    .meta-section {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .credit-row {
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+    .credit-row a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .credit-row a:hover {
+      text-decoration: underline;
+    }
+    .hint-text {
+      font-style: italic;
+      color: #9CA3AF;
+      font-size: 11px;
+    }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      header { padding: 16px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔍 NutriLens - Rà soát ảnh món ăn</h1>
+    <p>Trang kiểm tra trực quan ảnh món ăn đã được xác minh từ Wikipedia/Wikimedia Commons hoặc do người dùng cung cấp.</p>
+    <div class="stats-bar">
+      <div class="stat-pill">Tổng số món: 47</div>
+      <div class="stat-pill">✅ Đã xác minh ảnh: 46</div>
+      <div class="stat-pill pill-empty">🍴 Placeholder: 1</div>
+    </div>
+  </header>
+
+  <main class="grid">
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-bao.jpg" alt="Bánh bao" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh bao</h3>
+        <p class="name-en">Steamed Bun</p>
+        <p class="slug-code"><code>banh-bao</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">bun</span> <span class="tag">pork</span> <span class="tag">steamed</span> <span class="tag">breakfast</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-can.jpg" alt="Bánh căn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh căn</h3>
+        <p class="name-en">Vietnamese Mini Pancake</p>
+        <p class="slug-code"><code>banh-can</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">pancake</span> <span class="tag">central</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-cuon.jpg" alt="Bánh cuốn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh cuốn</h3>
+        <p class="name-en">Steamed Rice Rolls</p>
+        <p class="slug-code"><code>banh-cuon</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">pork</span> <span class="tag">steamed</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-khot.jpg" alt="Bánh khọt" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh khọt</h3>
+        <p class="name-en">Vietnamese Mini Savory Pancake</p>
+        <p class="slug-code"><code>banh-khot</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">pancake</span> <span class="tag">south</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/banh-mi-thit.jpg" alt="Bánh mì thịt" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh mì thịt</h3>
+        <p class="name-en">Vietnamese Pork Baguette</p>
+        <p class="slug-code"><code>banh-mi-thit</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">bread</span> <span class="tag">pork</span> <span class="tag">street</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-trang-tron.jpg" alt="Bánh tráng trộn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh tráng trộn</h3>
+        <p class="name-en">Mixed Rice Paper Salad</p>
+        <p class="slug-code"><code>banh-trang-tron</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">street food</span> <span class="tag">saigon</span> <span class="tag">snack</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/banh-xeo.jpg" alt="Bánh xèo" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bánh xèo</h3>
+        <p class="name-en">Sizzling Crepe</p>
+        <p class="slug-code"><code>banh-xeo</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">crepe</span> <span class="tag">shrimp</span> <span class="tag">pork</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/bo-luc-lac.jpg" alt="Bò lúc lắc" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bò lúc lắc</h3>
+        <p class="name-en">Shaken Beef</p>
+        <p class="slug-code"><code>bo-luc-lac</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">beef</span> <span class="tag">stir-fry</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/bun-bo-hue.jpg" alt="Bún bò Huế" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bún bò Huế</h3>
+        <p class="name-en">Hue Beef Noodle Soup</p>
+        <p class="slug-code"><code>bun-bo-hue</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">beef</span> <span class="tag">spicy</span> <span class="tag">hue</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/bun-cha-ha-noi.jpg" alt="Bún chả Hà Nội" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bún chả Hà Nội</h3>
+        <p class="name-en">Hanoi Grilled Pork with Noodles</p>
+        <p class="slug-code"><code>bun-cha-ha-noi</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">pork</span> <span class="tag">grilled</span> <span class="tag">hanoi</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/bun-dau-mam-tom.jpg" alt="Bún đậu mắm tôm" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bún đậu mắm tôm</h3>
+        <p class="name-en">Noodles with Tofu & Shrimp Paste</p>
+        <p class="slug-code"><code>bun-dau-mam-tom</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">noodle</span> <span class="tag">tofu</span> <span class="tag">hanoi</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/bun-rieu-cua.jpg" alt="Bún riêu cua" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bún riêu cua</h3>
+        <p class="name-en">Crab Noodle Soup</p>
+        <p class="slug-code"><code>bun-rieu-cua</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">crab</span> <span class="tag">noodle</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/bun-thit-nuong.jpg" alt="Bún thịt nướng" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Bún thịt nướng</h3>
+        <p class="name-en">Grilled Pork Noodle Bowl</p>
+        <p class="slug-code"><code>bun-thit-nuong</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">pork</span> <span class="tag">grilled</span> <span class="tag">noodle</span> <span class="tag">south</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/ca-kho-to.jpg" alt="Cá kho tộ" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cá kho tộ</h3>
+        <p class="name-en">Claypot Braised Fish</p>
+        <p class="slug-code"><code>ca-kho-to</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">fish</span> <span class="tag">braised</span> <span class="tag">claypot</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/ca-phe-sua-da.jpg" alt="Cà phê sữa đá" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cà phê sữa đá</h3>
+        <p class="name-en">Vietnamese Iced Milk Coffee</p>
+        <p class="slug-code"><code>ca-phe-sua-da</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">coffee</span> <span class="tag">drink</span> <span class="tag">sweet</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/canh-chua-ca.jpg" alt="Canh chua cá" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Canh chua cá</h3>
+        <p class="name-en">Sour Fish Soup</p>
+        <p class="slug-code"><code>canh-chua-ca</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">sour</span> <span class="tag">fish</span> <span class="tag">south</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/canh-kho-qua-nhoi-thit.jpg" alt="Canh khổ qua nhồi thịt" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Canh khổ qua nhồi thịt</h3>
+        <p class="name-en">Bitter Melon Soup</p>
+        <p class="slug-code"><code>canh-kho-qua-nhoi-thit</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">pork</span> <span class="tag">bitter melon</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/cha-gio-nem-ran.jpg" alt="Chả giò (nem rán)" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Chả giò (nem rán)</h3>
+        <p class="name-en">Fried Spring Rolls</p>
+        <p class="slug-code"><code>cha-gio-nem-ran</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">fried</span> <span class="tag">pork</span> <span class="tag">shrimp</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/chao-ga.jpg" alt="Cháo gà" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cháo gà</h3>
+        <p class="name-en">Chicken Congee</p>
+        <p class="slug-code"><code>chao-ga</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">chicken</span> <span class="tag">soup</span> <span class="tag">light</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/chao-long.jpg" alt="Cháo lòng" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cháo lòng</h3>
+        <p class="name-en">Pork Offal Congee</p>
+        <p class="slug-code"><code>chao-long</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">pork</span> <span class="tag">soup</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/che-ba-mau.jpg" alt="Chè ba màu" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Chè ba màu</h3>
+        <p class="name-en">Three-color Dessert</p>
+        <p class="slug-code"><code>che-ba-mau</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">dessert</span> <span class="tag">sweet</span> <span class="tag">colorful</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/che-dau-xanh.jpg" alt="Chè đậu xanh" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Chè đậu xanh</h3>
+        <p class="name-en">Mung Bean Sweet Soup</p>
+        <p class="slug-code"><code>che-dau-xanh</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">dessert</span> <span class="tag">sweet</span> <span class="tag">mung bean</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/com-binh-dan-thit-kho.jpg" alt="Cơm bình dân (thịt kho)" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cơm bình dân (thịt kho)</h3>
+        <p class="name-en">Vietnamese Home Rice (Braised Pork)</p>
+        <p class="slug-code"><code>com-binh-dan-thit-kho</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">pork</span> <span class="tag">braised</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/com-chien-duong-chau.jpg" alt="Cơm chiên dương châu" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cơm chiên dương châu</h3>
+        <p class="name-en">Yangzhou Fried Rice</p>
+        <p class="slug-code"><code>com-chien-duong-chau</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">fried</span> <span class="tag">egg</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/com-ga-hoi-an.jpg" alt="Cơm gà Hội An" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cơm gà Hội An</h3>
+        <p class="name-en">Hoi An Chicken Rice</p>
+        <p class="slug-code"><code>com-ga-hoi-an</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">chicken</span> <span class="tag">central</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/com-nieu.jpg" alt="Cơm niêu" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cơm niêu</h3>
+        <p class="name-en">Claypot Rice</p>
+        <p class="slug-code"><code>com-nieu</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">claypot</span> <span class="tag">chicken</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/com-tam-suon.jpg" alt="Cơm tấm sườn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Cơm tấm sườn</h3>
+        <p class="name-en">Broken Rice with Pork Chop</p>
+        <p class="slug-code"><code>com-tam-suon</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">rice</span> <span class="tag">pork</span> <span class="tag">saigon</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/dau-hu-sot-ca-chua.jpg" alt="Đậu hũ sốt cà chua" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Đậu hũ sốt cà chua</h3>
+        <p class="name-en">Tofu with Tomato Sauce</p>
+        <p class="slug-code"><code>dau-hu-sot-ca-chua</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">tofu</span> <span class="tag">tomato</span> <span class="tag">vegetarian</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/ga-nuong-mat-ong.jpg" alt="Gà nướng mật ong" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Gà nướng mật ong</h3>
+        <p class="name-en">Honey Grilled Chicken</p>
+        <p class="slug-code"><code>ga-nuong-mat-ong</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">chicken</span> <span class="tag">grilled</span> <span class="tag">honey</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/goi-bap-cai-tom.jpg" alt="Gỏi bắp cải tôm" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Gỏi bắp cải tôm</h3>
+        <p class="name-en">Cabbage Shrimp Salad</p>
+        <p class="slug-code"><code>goi-bap-cai-tom</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">salad</span> <span class="tag">shrimp</span> <span class="tag">healthy</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/goi-cuon.jpg" alt="Gỏi cuốn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Gỏi cuốn</h3>
+        <p class="name-en">Fresh Spring Rolls</p>
+        <p class="slug-code"><code>goi-cuon</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">fresh</span> <span class="tag">shrimp</span> <span class="tag">pork</span> <span class="tag">healthy</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/goi-ngo-sen.jpg" alt="Gỏi ngó sen" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Gỏi ngó sen</h3>
+        <p class="name-en">Lotus Stem Salad</p>
+        <p class="slug-code"><code>goi-ngo-sen</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">salad</span> <span class="tag">lotus</span> <span class="tag">healthy</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/hu-tieu-nam-vang.jpg" alt="Hủ tiếu Nam Vang" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Hủ tiếu Nam Vang</h3>
+        <p class="name-en">Phnom Penh Style Noodle Soup</p>
+        <p class="slug-code"><code>hu-tieu-nam-vang</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">noodle</span> <span class="tag">soup</span> <span class="tag">south</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/lau-thai-hai-san.jpg" alt="Lẩu thái hải sản" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Lẩu thái hải sản</h3>
+        <p class="name-en">Thai Seafood Hot Pot</p>
+        <p class="slug-code"><code>lau-thai-hai-san</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">hotpot</span> <span class="tag">seafood</span> <span class="tag">spicy</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/mi-quang.jpg" alt="Mì Quảng" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Mì Quảng</h3>
+        <p class="name-en">Quang-style Noodles</p>
+        <p class="slug-code"><code>mi-quang</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">noodle</span> <span class="tag">central</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/nuoc-mia.jpg" alt="Nước mía" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Nước mía</h3>
+        <p class="name-en">Sugarcane Juice</p>
+        <p class="slug-code"><code>nuoc-mia</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">drink</span> <span class="tag">sweet</span> <span class="tag">sugarcane</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/oc-luoc.jpg" alt="Ốc luộc" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Ốc luộc</h3>
+        <p class="name-en">Boiled Snails</p>
+        <p class="slug-code"><code>oc-luoc</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">snail</span> <span class="tag">boiled</span> <span class="tag">street food</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/pho-bo-tai.jpg" alt="Phở bò tái" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Phở bò tái</h3>
+        <p class="name-en">Beef Pho (Rare)</p>
+        <p class="slug-code"><code>pho-bo-tai</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">beef</span> <span class="tag">noodle</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/pho-ga.jpg" alt="Phở gà" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Phở gà</h3>
+        <p class="name-en">Chicken Pho</p>
+        <p class="slug-code"><code>pho-ga</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">soup</span> <span class="tag">chicken</span> <span class="tag">noodle</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/rau-muong-xao-toi.jpg" alt="Rau muống xào tỏi" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Rau muống xào tỏi</h3>
+        <p class="name-en">Stir-fried Water Spinach</p>
+        <p class="slug-code"><code>rau-muong-xao-toi</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">vegetable</span> <span class="tag">stir-fry</span> <span class="tag">garlic</span> <span class="tag">healthy</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/thit-kho-trung.jpg" alt="Thịt kho trứng" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Thịt kho trứng</h3>
+        <p class="name-en">Braised Pork & Eggs</p>
+        <p class="slug-code"><code>thit-kho-trung</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">pork</span> <span class="tag">egg</span> <span class="tag">braised</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/tom-rang-muoi.jpg" alt="Tôm rang muối" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Tôm rang muối</h3>
+        <p class="name-en">Salt-fried Shrimp</p>
+        <p class="slug-code"><code>tom-rang-muoi</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">shrimp</span> <span class="tag">fried</span> <span class="tag">seafood</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/tra-da.jpg" alt="Trà đá" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Trà đá</h3>
+        <p class="name-en">Vietnamese Iced Tea</p>
+        <p class="slug-code"><code>tra-da</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">drink</span> <span class="tag">tea</span> <span class="tag">free</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/trung-vit-lon.jpg" alt="Trứng vịt lộn" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Trứng vịt lộn</h3>
+        <p class="name-en">Fertilized Duck Egg (Balut)</p>
+        <p class="slug-code"><code>trung-vit-lon</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">egg</span> <span class="tag">street food</span> <span class="tag">duck</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>CC / Public Domain</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Wikimedia Commons</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="Wikipedia" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/vit-quay.jpg" alt="Vịt quay" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Vịt quay</h3>
+        <p class="name-en">Roast Duck</p>
+        <p class="slug-code"><code>vit-quay</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">duck</span> <span class="tag">roasted</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card has-image">
+      <div class="img-container">
+        <img src="/food-images/manual/xoi-xeo.jpg" alt="Xôi xéo" loading="lazy" />
+        <span class="status-badge badge-ok">
+          Đã xác minh
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Xôi xéo</h3>
+        <p class="name-en">Sticky Rice with Mung Bean</p>
+        <p class="slug-code"><code>xoi-xeo</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">sticky rice</span> <span class="tag">mung bean</span> <span class="tag">breakfast</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <div class="credit-row"><strong>Giấy phép:</strong> <code>User provided</code></div>
+            <div class="credit-row"><strong>Tác giả:</strong> Manual upload</div>
+            <div class="credit-row"><strong>Nguồn:</strong> <a href="local" target="_blank" rel="noopener">Xem trang gốc ↗</a></div>
+            
+        </div>
+      </div>
+    </div>
+    
+    <div class="card no-image">
+      <div class="img-container">
+        <div class="placeholder-box">
+                <span class="placeholder-icon">🍴</span>
+                <span class="placeholder-text">Chưa có ảnh<br><small>(Dùng placeholder)</small></span>
+               </div>
+        <span class="status-badge badge-empty">
+          Placeholder
+        </span>
+      </div>
+
+      <div class="card-body">
+        <h3 class="name-vi">Mực xào cần tây</h3>
+        <p class="name-en">Stir-fried Squid with Celery</p>
+        <p class="slug-code"><code>muc-xao-can-tay</code></p>
+        
+        <div class="tags-row">
+          <span class="tag">squid</span> <span class="tag">seafood</span> <span class="tag">stir-fry</span>
+        </div>
+
+        <div class="meta-section">
+          
+            <p class="hint-text">Món này chưa tìm thấy ảnh chính xác trên Wikipedia. Sẽ hiển thị icon đại diện trong ứng dụng.</p>
+            
+        </div>
+      </div>
+    </div>
+    
+  </main>
+</body>
+</html>

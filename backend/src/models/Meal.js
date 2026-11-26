@@ -16,5 +16,6 @@ const schema = new Schema(
   { timestamps: true }
 );
 schema.index({ userId: 1, eatenAt: -1 });
+schema.index({ eatenAt: -1 });
 
 export default mongoose.model('Meal', schema);

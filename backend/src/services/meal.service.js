@@ -1,20 +1,27 @@
 import fs from 'fs';
 import path from 'path';
+import mongoose from 'mongoose';
 import Food from '../models/Food.js';
 import Meal from '../models/Meal.js';
 import MealItem from '../models/MealItem.js';
 import AiPrediction from '../models/AiPrediction.js';
+import Feedback from '../models/Feedback.js';
 import { env } from '../config/env.js';
 import AppError from '../utils/AppError.js';
+import { invalidateStatsCache } from './adminStats.service.js';
 
 let foodsCache = null;
+
+export function invalidateFoodsCache() {
+  foodsCache = null;
+}
 
 export async function ensureFoodsSeeded() {
   if (foodsCache && foodsCache.length > 0) return foodsCache;
 
   const count = await Food.countDocuments();
   if (count > 0) {
-    foodsCache = await Food.find({ isActive: true }).lean();
+    foodsCache = await Food.find({ isActive: { $ne: false } }).lean();
     return foodsCache;
   }
 
@@ -70,7 +77,7 @@ export async function ensureFoodsSeeded() {
     console.log(`Đã nạp ${foodsToInsert.length} món ăn vào cơ sở dữ liệu MongoDB!`);
   }
 
-  foodsCache = await Food.find({ isActive: true }).lean();
+  foodsCache = await Food.find({ isActive: { $ne: false } }).lean();
   return foodsCache;
 }
 
@@ -88,7 +95,7 @@ export function calculateNutritionForGrams(food, grams) {
 
 export async function predictMealImage(userId, fileBuffer, mimeType = 'image/jpeg', fileName = 'upload.jpg') {
   await ensureFoodsSeeded();
-  const allFoods = await Food.find({ isActive: true }).lean();
+  const allFoods = await Food.find({ isActive: { $ne: false } }).lean();
   const foodMap = new Map(allFoods.map((f) => [f.classId, f]));
 
   let aiResult = null;
@@ -232,6 +239,7 @@ export async function saveMeal(userId, mealData) {
     portionGrams,
     mealType = 'lunch',
     predictionId,
+    predictedClass,
     imageUrl,
     nutrition,
   } = mealData;
@@ -239,6 +247,35 @@ export async function saveMeal(userId, mealData) {
   if (!foodName || !nutrition || !nutrition.kcal) {
     throw new AppError(400, 'Thiếu thông tin món ăn hoặc dinh dưỡng');
   }
+
+  let validFood = null;
+  if (foodId) {
+    if (!mongoose.isValidObjectId(foodId)) {
+      throw new AppError(400, 'ID món ăn không hợp lệ');
+    }
+    validFood = await Food.findById(foodId).select('_id classId aiClassId name').lean();
+  }
+
+  let prediction = null;
+  if (predictionId) {
+    if (!mongoose.isValidObjectId(predictionId)) {
+      throw new AppError(400, 'ID dự đoán không hợp lệ');
+    }
+    prediction = await AiPrediction.findOne({ _id: predictionId, userId }).select('_id top3').lean();
+  }
+
+  const refAiClass =
+    (typeof predictedClass === 'string' && predictedClass.trim()) ||
+    prediction?.top3?.[0]?.classId ||
+    null;
+
+  const isCorrected = Boolean(
+    prediction &&
+      refAiClass &&
+      validFood &&
+      validFood.classId !== refAiClass &&
+      validFood.aiClassId !== refAiClass
+  );
 
   // 1. Tạo bản ghi Meal
   const meal = await Meal.create({
@@ -259,24 +296,94 @@ export async function saveMeal(userId, mealData) {
   const mealItem = await MealItem.create({
     mealId: meal._id,
     userId,
-    foodId: foodId || null,
+    foodId: validFood?._id || foodId || null,
     foodName,
-    predictionId: predictionId || null,
+    predictionId: prediction?._id || null,
     imageUrl: imageUrl || null,
     portionLabel: portionLabel || `${portionGrams}g`,
     portionGrams: Number(portionGrams) || 500,
     nutrition,
+    isCorrected,
   });
 
   // 3. Cập nhật AiPrediction nếu có
-  if (predictionId) {
-    await AiPrediction.findByIdAndUpdate(predictionId, { status: 'confirmed' });
+  if (prediction) {
+    await AiPrediction.findByIdAndUpdate(prediction._id, { status: 'confirmed' });
   }
+
+  invalidateStatsCache();
 
   return { meal, mealItem };
 }
 
+export async function createFeedback(userId, payload) {
+  const { predictionId, correctFoodId, predictedClass, comment } = payload ?? {};
+
+  if (!mongoose.isValidObjectId(predictionId)) {
+    throw new AppError(400, 'ID dự đoán không hợp lệ');
+  }
+  if (!mongoose.isValidObjectId(correctFoodId)) {
+    throw new AppError(400, 'Vui lòng chọn món ăn đúng');
+  }
+
+  const [prediction, correctFood] = await Promise.all([
+    AiPrediction.findById(predictionId).select('_id userId top3').lean(),
+    Food.findOne({ _id: correctFoodId, isActive: { $ne: false } }).select('_id name classId aiClassId').lean(),
+  ]);
+
+  if (!prediction) {
+    throw new AppError(404, 'Không tìm thấy bản ghi dự đoán AI');
+  }
+  if (String(prediction.userId) !== String(userId)) {
+    throw new AppError(403, 'Không có quyền gửi góp ý cho dự đoán này');
+  }
+  if (!correctFood) {
+    throw new AppError(404, 'Không tìm thấy món ăn đã chọn');
+  }
+
+  let cleanComment;
+  if (comment !== undefined && comment !== null) {
+    if (typeof comment !== 'string') throw new AppError(400, 'Nội dung góp ý không hợp lệ');
+    const trimmed = comment.trim();
+    if (trimmed.length > 500) throw new AppError(400, 'Góp ý tối đa 500 ký tự');
+    if (trimmed) cleanComment = trimmed;
+  }
+
+  const cleanPredictedClass =
+    typeof predictedClass === 'string' && predictedClass.trim()
+      ? predictedClass.trim().slice(0, 100)
+      : prediction.top3?.[0]?.classId || '';
+
+  const existingPending = await Feedback.findOne({
+    predictionId: prediction._id,
+    userId,
+    status: { $ne: 'resolved' },
+  });
+
+  let feedback;
+  if (existingPending) {
+    existingPending.correctFoodId = correctFood._id;
+    existingPending.predictedClass = cleanPredictedClass;
+    existingPending.comment = cleanComment;
+    existingPending.status = 'pending';
+    feedback = await existingPending.save();
+  } else {
+    feedback = await Feedback.create({
+      predictionId: prediction._id,
+      userId,
+      predictedClass: cleanPredictedClass,
+      correctFoodId: correctFood._id,
+      comment: cleanComment,
+      status: 'pending',
+    });
+  }
+
+  invalidateStatsCache();
+
+  return feedback;
+}
+
 export async function getAllFoods() {
   await ensureFoodsSeeded();
-  return Food.find({ isActive: true }).sort({ name: 1 }).lean();
+  return Food.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
 }

@@ -7,7 +7,7 @@ const schema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     foodId: { type: Schema.Types.ObjectId, ref: 'Food', required: true },
     foodName: String, // snapshot
-    predictionId: { type: Schema.Types.ObjectId, ref: 'AiPrediction' }, // null nếu thêm thủ công
+    predictionId: { type: Schema.Types.ObjectId, ref: 'AiPrediction', index: true }, // null nếu thêm thủ công
     imageUrl: String,
     portionLabel: String,
     portionGrams: { type: Number, required: true },
@@ -16,5 +16,8 @@ const schema = new Schema(
   },
   { timestamps: true }
 );
+
+schema.index({ createdAt: -1 });
+schema.index({ isCorrected: 1, predictionId: 1 });
 
 export default mongoose.model('MealItem', schema);

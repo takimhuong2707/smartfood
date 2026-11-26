@@ -9,6 +9,18 @@ export const updateProfile = asyncHandler(async (req, res) => {
   res.json(await userService.updateProfile(req.user.id, req.body ?? {}));
 });
 
+export const uploadAvatar = asyncHandler(async (req, res) => {
+  res.json(await userService.updateAvatar(req.user.id, req.file));
+});
+
+export const saveNote = asyncHandler(async (req, res) => {
+  res.json(await userService.upsertNote(req.user.id, req.body ?? {}));
+});
+
+export const removeNote = asyncHandler(async (req, res) => {
+  res.json(await userService.deleteNote(req.user.id));
+});
+
 export const getTodaySummary = asyncHandler(async (req, res) => {
   res.json(await userService.getTodaySummary(req.user.id, req.query.date));
 });

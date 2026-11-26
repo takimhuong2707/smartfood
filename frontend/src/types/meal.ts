@@ -51,6 +51,7 @@ export type SaveMealInput = {
   portionGrams: number;
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   predictionId?: string;
+  predictedClass?: string;
   imageUrl?: string;
   nutrition: {
     kcal: number;
@@ -59,6 +60,13 @@ export type SaveMealInput = {
     fat: number;
     fiber?: number;
   };
+};
+
+export type SubmitFeedbackInput = {
+  predictionId: string;
+  correctFoodId: string;
+  predictedClass?: string;
+  comment?: string;
 };
 
 export type FoodItem = {

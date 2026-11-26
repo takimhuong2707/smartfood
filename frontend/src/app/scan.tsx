@@ -33,6 +33,8 @@ export default function ScanScreen() {
 
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [stage, setStage] = useState<ScanStage>('camera');
 
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -56,6 +58,15 @@ export default function ScanScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Lưu lại món Top-1 ban đầu do AI dự đoán cho từng tô để so sánh isCorrected & gửi Feedback
+  const [aiTopByBowl, setAiTopByBowl] = useState<Record<number, { classId: string; name: string }>>({});
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackSearch, setFeedbackSearch] = useState('');
+  const [feedbackFood, setFeedbackFood] = useState<{ _id: string; name: string } | null>(null);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
   // Set default meal type based on hour
   useEffect(() => {
     const h = new Date().getHours();
@@ -65,41 +76,80 @@ export default function ScanScreen() {
     else setMealType('snack');
   }, []);
 
+  // Tự xin quyền camera ngay khi mở màn hình nếu chưa cấp
+  useEffect(() => {
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission().catch(() => null);
+    }
+  }, [permission, requestPermission]);
+
   const handleCapture = async () => {
+    if (capturing) return;
+    setCapturing(true);
     try {
-      if (cameraRef.current) {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
-          skipProcessing: false,
-        });
-        if (photo?.uri) {
-          processImage(photo.uri);
-          return;
+      // 1. Đảm bảo đã có quyền camera
+      if (!permission?.granted) {
+        const camPerm = await requestPermission();
+        if (!camPerm.granted) {
+          const pickerPerm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!pickerPerm.granted) {
+            Alert.alert('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh trong Cài đặt để chụp món ăn.');
+            return;
+          }
         }
+      }
+
+      // 2. Ưu tiên chụp trực tiếp từ CameraView nếu đã sẵn sàng
+      if (cameraRef.current && cameraReady) {
+        try {
+          const photo = await cameraRef.current.takePictureAsync({
+            quality: 0.75,
+          });
+          if (photo?.uri) {
+            await processImage(photo.uri);
+            return;
+          }
+        } catch (camErr) {
+          console.warn('CameraView takePictureAsync lỗi, chuyển sang ImagePicker:', camErr);
+        }
+      }
+
+      // 3. Fallback an toàn sang trình máy ảnh hệ thống (hoạt động trên mọi máy Android/iOS/Web)
+      const pickerPerm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!pickerPerm.granted) {
+        Alert.alert('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh để chụp ảnh.');
+        return;
       }
       const res = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
-        quality: 0.8,
+        quality: 0.75,
       });
-      if (!res.canceled && res.assets[0]?.uri) {
-        processImage(res.assets[0].uri);
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        await processImage(res.assets[0].uri);
       }
     } catch (err: any) {
-      Alert.alert('Lỗi chụp ảnh', err.message || 'Không thể chụp ảnh');
+      Alert.alert('Lỗi chụp ảnh', err?.message || 'Không thể chụp ảnh, vui lòng chọn từ Thư viện.');
+    } finally {
+      setCapturing(false);
     }
   };
 
   const handlePickLibrary = async () => {
     try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Cần quyền thư viện ảnh', 'Vui lòng cho phép truy cập thư viện ảnh để chọn ảnh món ăn.');
+        return;
+      }
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.8,
       });
-      if (!res.canceled && res.assets[0]?.uri) {
-        processImage(res.assets[0].uri);
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        await processImage(res.assets[0].uri);
       }
     } catch (err: any) {
-      Alert.alert('Lỗi chọn ảnh', err.message || 'Không thể chọn ảnh từ thư viện');
+      Alert.alert('Lỗi chọn ảnh', err?.message || 'Không thể chọn ảnh từ thư viện');
     }
   };
 
@@ -116,6 +166,16 @@ export default function ScanScreen() {
       const items = res.items && res.items.length > 0 ? res.items : [{ index: 1, candidates: res.candidates }];
       setPredictionItems(items);
       setSelectedItemIndex(0);
+      setFeedbackSent(false);
+      setFeedbackComment('');
+      setFeedbackFood(null);
+
+      const topMap: Record<number, { classId: string; name: string }> = {};
+      items.forEach((it, idx) => {
+        const top = it.candidates?.[0];
+        if (top) topMap[idx] = { classId: top.classId, name: top.name };
+      });
+      setAiTopByBowl(topMap);
 
       const firstItemCandidates = items[0]?.candidates || res.candidates || [];
       setCandidates(firstItemCandidates);
@@ -214,6 +274,53 @@ export default function ScanScreen() {
     setShowSearchModal(false);
   };
 
+  const openFeedbackModal = async () => {
+    try {
+      let list = allFoods;
+      if (list.length === 0) {
+        list = await mealService.getAllFoods();
+        setAllFoods(list);
+      }
+      const aiTop = aiTopByBowl[selectedItemIndex];
+      const cur = candidates[selectedCandidateIndex];
+      if (cur && aiTop && cur.classId !== aiTop.classId) {
+        setFeedbackFood({ _id: cur.foodId, name: cur.name });
+      }
+      setFeedbackSearch('');
+      setShowFeedbackModal(true);
+    } catch {
+      setShowFeedbackModal(true);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!predictionId) {
+      Alert.alert('Thông báo', 'Chưa có mã nhận diện AI để gửi góp ý');
+      return;
+    }
+    if (!feedbackFood) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng chọn món ăn đúng bên dưới');
+      return;
+    }
+    setSendingFeedback(true);
+    try {
+      const aiTop = aiTopByBowl[selectedItemIndex];
+      await mealService.submitFeedback({
+        predictionId,
+        correctFoodId: feedbackFood._id,
+        predictedClass: aiTop?.classId || undefined,
+        comment: feedbackComment.trim() || undefined,
+      });
+      setFeedbackSent(true);
+      setShowFeedbackModal(false);
+      Alert.alert('Cảm ơn bạn!', 'Đã gửi góp ý để cải thiện độ chính xác của mô hình AI.');
+    } catch (err: any) {
+      Alert.alert('Không thể gửi góp ý', err.response?.data?.message || err.message || 'Vui lòng thử lại');
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
+
   const handleSaveMeal = async () => {
     const currentCandidate = candidates[selectedCandidateIndex];
     if (!currentCandidate || !selectedPortion) {
@@ -223,6 +330,7 @@ export default function ScanScreen() {
 
     setSaving(true);
     try {
+      const aiTop = aiTopByBowl[selectedItemIndex];
       await mealService.saveMeal({
         foodId: currentCandidate.foodId,
         foodName: currentCandidate.name,
@@ -230,6 +338,7 @@ export default function ScanScreen() {
         portionGrams: selectedPortion.grams,
         mealType,
         predictionId: predictionId || undefined,
+        predictedClass: aiTop?.classId || undefined,
         imageUrl: imageUri || undefined,
         nutrition: {
           kcal: selectedPortion.kcal,
@@ -375,13 +484,32 @@ export default function ScanScreen() {
               })}
             </View>
 
-            <TouchableOpacity
-              style={s.otherDishBtn}
-              onPress={openSearchModal}
-              activeOpacity={0.7}
-            >
-              <Text style={s.otherDishText}>Không đúng? Tìm món khác</Text>
-            </TouchableOpacity>
+            <View style={s.dishActionRow}>
+              <TouchableOpacity
+                style={s.otherDishBtn}
+                onPress={openSearchModal}
+                activeOpacity={0.7}
+              >
+                <Text style={s.otherDishText}>Không đúng? Tìm món khác</Text>
+              </TouchableOpacity>
+
+              {predictionId && (
+                <TouchableOpacity
+                  style={[s.reportFeedbackBtn, feedbackSent && s.reportFeedbackBtnSent]}
+                  onPress={openFeedbackModal}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name={feedbackSent ? 'checkmark-circle' : 'flag-outline'}
+                    size={14}
+                    color={feedbackSent ? '#15803D' : '#B45309'}
+                  />
+                  <Text style={[s.reportFeedbackText, feedbackSent && s.reportFeedbackTextSent]}>
+                    {feedbackSent ? 'Đã gửi góp ý AI' : 'Báo AI nhận sai'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* MÔ HÌNH 3: "Khẩu phần" (ƯỚC LƯỢNG KHẨU PHẦN TỪ PORTIONNET) */}
@@ -557,6 +685,95 @@ export default function ScanScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* Modal: Báo AI nhận diện sai (Feedback) */}
+        <Modal visible={showFeedbackModal} animationType="slide" transparent>
+          <View style={s.modalOverlay}>
+            <View style={[s.modalContent, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={s.modalHeader}>
+                <Text style={s.modalTitle}>Góp ý kết quả nhận diện AI</Text>
+                <TouchableOpacity
+                  onPress={() => setShowFeedbackModal(false)}
+                  style={s.modalCloseBtn}
+                >
+                  <Ionicons name="close" size={24} color="#1F2937" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={s.feedbackSubLabel}>
+                AI dự đoán ban đầu:{' '}
+                <Text style={{ fontWeight: '700', color: '#14261C' }}>
+                  {aiTopByBowl[selectedItemIndex]?.name || aiTopByBowl[selectedItemIndex]?.classId || '--'}
+                </Text>
+              </Text>
+
+              <Text style={s.feedbackFieldLabel}>
+                Món ăn đúng là: {feedbackFood ? <Text style={{ color: '#15803D' }}>{feedbackFood.name}</Text> : '(chưa chọn)'}
+              </Text>
+
+              <View style={s.modalSearchBox}>
+                <Ionicons name="search" size={18} color="#6B7280" />
+                <TextInput
+                  style={s.modalSearchInput}
+                  value={feedbackSearch}
+                  onChangeText={setFeedbackSearch}
+                  placeholder="Tìm món ăn đúng..."
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <ScrollView style={{ maxHeight: 190, marginBottom: 12 }}>
+                {allFoods
+                  .filter((f) =>
+                    f.name.toLowerCase().includes(feedbackSearch.toLowerCase().trim())
+                  )
+                  .map((f) => {
+                    const selected = feedbackFood?._id === f._id;
+                    return (
+                      <TouchableOpacity
+                        key={f._id}
+                        style={[s.foodSelectItem, selected && s.foodSelectItemActive]}
+                        onPress={() => setFeedbackFood({ _id: f._id, name: f.name })}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.foodSelectName, selected && { color: '#15803D' }]}>{f.name}</Text>
+                        </View>
+                        <Ionicons
+                          name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+                          size={20}
+                          color={selected ? '#15803D' : '#9CA3AF'}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+              </ScrollView>
+
+              <Text style={s.feedbackFieldLabel}>Ghi chú thêm (tùy chọn)</Text>
+              <TextInput
+                style={s.feedbackCommentInput}
+                value={feedbackComment}
+                onChangeText={setFeedbackComment}
+                placeholder="VD: Ảnh chụp hơi tối, món bún riêu bị nhầm thành bún bò..."
+                placeholderTextColor="#9CA3AF"
+                maxLength={500}
+                multiline
+              />
+
+              <TouchableOpacity
+                style={[s.saveMealBtn, sendingFeedback && s.saveMealBtnDisabled]}
+                onPress={handleSubmitFeedback}
+                disabled={sendingFeedback}
+                activeOpacity={0.85}
+              >
+                {sendingFeedback ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={s.saveMealBtnText}>Gửi góp ý cho Quản trị viên</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -570,6 +787,8 @@ export default function ScanScreen() {
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           facing={facing}
+          onCameraReady={() => setCameraReady(true)}
+          onMountError={() => setCameraReady(false)}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, s.cameraFallback]}>
@@ -603,7 +822,7 @@ export default function ScanScreen() {
       </View>
 
       {/* Center Dashed Viewfinder Frame */}
-      <View style={s.viewfinderContainer}>
+      <View style={s.viewfinderContainer} pointerEvents="none">
         <View style={s.dashedFrame}>
           <Text style={s.dashedFrameText}>
             Đặt một món vào khung, chụp chính diện, đủ sáng
@@ -623,16 +842,24 @@ export default function ScanScreen() {
 
         {/* Big White Capture Shutter */}
         <TouchableOpacity
-          style={s.shutterOuter}
+          style={[s.shutterOuter, capturing && { opacity: 0.6 }]}
           onPress={handleCapture}
+          disabled={capturing}
           activeOpacity={0.7}
         >
-          <View style={s.shutterInner} />
+          {capturing ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <View style={s.shutterInner} />
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={s.roundDarkBtn}
-          onPress={() => setFacing((prev) => (prev === 'back' ? 'front' : 'back'))}
+          onPress={() => {
+            setCameraReady(false);
+            setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
+          }}
           activeOpacity={0.8}
         >
           <Text style={s.roundDarkBtnText}>Lật</Text>
@@ -682,6 +909,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 18,
     zIndex: 10,
+    elevation: 10,
   },
   closePillBtn: {
     paddingHorizontal: 18,
@@ -736,6 +964,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 24,
     zIndex: 10,
+    elevation: 10,
   },
   roundDarkBtn: {
     width: 82,
@@ -963,13 +1192,71 @@ const s = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  otherDishBtn: {
+  dishActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
     marginTop: 10,
+  },
+  otherDishBtn: {
+    paddingVertical: 4,
   },
   otherDishText: {
     fontSize: 13,
     color: '#1E5338',
     fontWeight: '700',
+  },
+  reportFeedbackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  reportFeedbackBtnSent: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#BBF7D0',
+  },
+  reportFeedbackText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  reportFeedbackTextSent: {
+    color: '#15803D',
+  },
+  feedbackSubLabel: {
+    fontSize: 13,
+    color: '#4B5563',
+    marginBottom: 8,
+  },
+  feedbackFieldLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  foodSelectItemActive: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  feedbackCommentInput: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#111827',
+    minHeight: 64,
+    textAlignVertical: 'top',
+    marginBottom: 14,
   },
   portionTitleRow: {
     flexDirection: 'row',

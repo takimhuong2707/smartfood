@@ -13,10 +13,18 @@ export type BodyMetric = {
   recordedAt?: string;
 };
 
+export type UserNote = {
+  text: string;
+  createdAt?: string;
+  expiresAt?: string;
+};
+
 export type User = {
   id: string;
   email: string;
   fullName: string;
+  avatarUrl?: string;
+  note?: UserNote;
   role: 'user' | 'admin';
   hasProfile: boolean;
   gender?: 'male' | 'female';

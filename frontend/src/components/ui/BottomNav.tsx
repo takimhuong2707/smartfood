@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants';
 
-type TabType = 'home' | 'stats' | 'camera' | 'chat' | 'profile';
+type TabType = 'home' | 'stats' | 'camera' | 'library' | 'profile';
 
 interface BottomNavProps {
   activeTab: TabType;
@@ -20,8 +20,8 @@ export default function BottomNav({ activeTab, onCameraPress }: BottomNavProps) 
       router.replace('/');
     } else if (tab === 'stats') {
       router.replace('/stats' as any);
-    } else if (tab === 'chat') {
-      router.replace('/chatbot' as any);
+    } else if (tab === 'library') {
+      router.replace('/foods' as any);
     } else if (tab === 'profile') {
       router.replace('/profile' as any);
     } else if (tab === 'camera') {
@@ -72,14 +72,14 @@ export default function BottomNav({ activeTab, onCameraPress }: BottomNavProps) 
       <TouchableOpacity
         style={s.tab}
         activeOpacity={0.7}
-        onPress={() => handleTabPress('chat')}
+        onPress={() => handleTabPress('library')}
       >
         <Ionicons
-          name={activeTab === 'chat' ? 'chatbubble' : 'chatbubble-ellipses-outline'}
+          name={activeTab === 'library' ? 'book' : 'book-outline'}
           size={22}
-          color={activeTab === 'chat' ? COLORS.primary : COLORS.muted}
+          color={activeTab === 'library' ? COLORS.primary : COLORS.muted}
         />
-        <Text style={[s.label, activeTab === 'chat' && s.labelActive]}>Chatbot</Text>
+        <Text style={[s.label, activeTab === 'library' && s.labelActive]}>Thư viện</Text>
       </TouchableOpacity>
 
       <TouchableOpacity

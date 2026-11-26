@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,12 +11,16 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { userService } from '@/services/user.service';
 import { COLORS } from '@/constants';
 import BottomNav from '@/components/ui/BottomNav';
+import UserAvatar from '@/components/ui/UserAvatar';
+import StoryModal, { type AvatarModalMode } from '@/components/ui/StoryModal';
 
 const ACTIVITY_OPTIONS = [
   { value: 'sedentary', label: 'Ít vận động', desc: 'Chủ yếu ngồi, làm việc bàn giấy' },
@@ -34,6 +39,7 @@ const GOAL_OPTIONS = [
 
 export default function ProfileScreen() {
   const { user, updateUser, logout } = useAuth();
+  const { isAdmin } = useIsAdmin();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -57,7 +63,14 @@ export default function ProfileScreen() {
   );
 
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user?.avatarUrl);
+  const [avatarModalMode, setAvatarModalMode] = useState<AvatarModalMode>('closed');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    setAvatarUrl(user?.avatarUrl);
+  }, [user?.avatarUrl]);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +79,7 @@ export default function ProfileScreen() {
         if (profile) {
           updateUser(profile);
           if (profile.fullName) setFullName(profile.fullName);
+          if (profile.avatarUrl) setAvatarUrl(profile.avatarUrl);
           if (profile.gender) setGender(profile.gender);
           if (profile.birthYear) setBirthYear(String(profile.birthYear));
           if (profile.activityLevel) setActivityLevel(profile.activityLevel);
@@ -76,6 +90,62 @@ export default function ProfileScreen() {
       } catch {}
     })();
   }, []);
+
+  const uploadPickedAvatar = async (uri: string) => {
+    try {
+      setUploadingAvatar(true);
+      setMessage(null);
+      setAvatarUrl(uri); // hiển thị xem trước ngay lập tức
+      const updated = await userService.uploadAvatar(uri);
+      setAvatarUrl(updated.avatarUrl);
+      updateUser(updated);
+      setMessage({ type: 'success', text: 'Đã cập nhật ảnh đại diện thành công!' });
+    } catch (e: any) {
+      setAvatarUrl(user?.avatarUrl);
+      setMessage({ type: 'error', text: e?.message || 'Không thể tải ảnh đại diện lên' });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const pickAvatarFromLibrary = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép truy cập thư viện ảnh để chọn ảnh đại diện.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!res.canceled && res.assets?.[0]?.uri) {
+      await uploadPickedAvatar(res.assets[0].uri);
+    }
+  };
+
+  const takeAvatarPhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Cần quyền máy ảnh', 'Vui lòng cấp quyền máy ảnh để chụp ảnh đại diện.');
+      return;
+    }
+    const res = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!res.canceled && res.assets?.[0]?.uri) {
+      await uploadPickedAvatar(res.assets[0].uri);
+    }
+  };
+
+  const handleChangeAvatar = () => {
+    if (uploadingAvatar) return;
+    setAvatarModalMode('menu');
+  };
 
   // Tính BMI tự động
   const h = Number(heightCm) / 100;
@@ -172,7 +242,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Success/Error Alert Message */}
+        {/* Success/Error Toast Banner */}
         {message && (
           <View
             style={[
@@ -180,11 +250,18 @@ export default function ProfileScreen() {
               message.type === 'success' ? s.alertSuccess : s.alertError,
             ]}
           >
-            <Ionicons
-              name={message.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
-              size={20}
-              color={message.type === 'success' ? '#059669' : '#DC2626'}
-            />
+            <View
+              style={[
+                s.alertIconCircle,
+                { backgroundColor: message.type === 'success' ? '#10B981' : '#EF4444' },
+              ]}
+            >
+              <Ionicons
+                name={message.type === 'success' ? 'checkmark' : 'alert'}
+                size={14}
+                color="#FFFFFF"
+              />
+            </View>
             <Text
               style={[
                 s.alertText,
@@ -193,15 +270,25 @@ export default function ProfileScreen() {
             >
               {message.text}
             </Text>
+            <TouchableOpacity onPress={() => setMessage(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={18} color="#6B7280" />
+            </TouchableOpacity>
           </View>
         )}
 
         {/* BẢNG 2: THỂ TRẠNG (BodyMetric Model) */}
         <View style={s.sectionCard}>
           <View style={s.sectionTitleRow}>
-            <View style={[s.sectionIconWrap, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="body-outline" size={20} color="#0284C7" />
-            </View>
+            <TouchableOpacity onPress={handleChangeAvatar} activeOpacity={0.8}>
+              <UserAvatar
+                uri={avatarUrl}
+                name={fullName || user?.fullName}
+                size={46}
+                borderRadius={23}
+                noteText={user?.note?.text}
+                showEditBadge
+              />
+            </TouchableOpacity>
             <View>
               <Text style={s.sectionTitle}>Chỉ số thể trạng</Text>
               <Text style={s.sectionSubtitle}>Dữ liệu lưu vào bảng BodyMetric</Text>
@@ -255,11 +342,25 @@ export default function ProfileScreen() {
 
         {/* BẢNG 1: THÔNG TIN CÁ NHÂN (User Model) */}
         <View style={s.sectionCard}>
-          <View style={s.sectionTitleRow}>
-            <View style={[s.sectionIconWrap, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="person-outline" size={20} color="#15803D" />
-            </View>
-            <View>
+          <View style={[s.sectionTitleRow, { marginTop: 10 }]}>
+            <TouchableOpacity onPress={handleChangeAvatar} disabled={uploadingAvatar} activeOpacity={0.8}>
+              {uploadingAvatar ? (
+                <View style={[s.sectionIconWrap, { backgroundColor: '#DCFCE7', width: 46, height: 46, borderRadius: 23 }]}>
+                  <ActivityIndicator size="small" color="#15803D" />
+                </View>
+              ) : (
+                <UserAvatar
+                  uri={avatarUrl}
+                  name={fullName || user?.fullName}
+                  size={46}
+                  borderRadius={23}
+                  noteText={user?.note?.text}
+                  showNotePrompt
+                  showEditBadge
+                />
+              )}
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>Thông tin cá nhân</Text>
               <Text style={s.sectionSubtitle}>Dữ liệu lưu vào bảng User</Text>
             </View>
@@ -460,6 +561,17 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
 
+        {isAdmin && (
+          <TouchableOpacity
+            style={[s.logoutButton, { borderColor: '#C8DEC8', backgroundColor: '#EDF7ED', marginBottom: 10 }]}
+            onPress={() => router.push('/admin' as Href)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color="#1E5136" />
+            <Text style={[s.logoutButtonText, { color: '#1E5136' }]}>Quản trị</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Nút đăng xuất phụ */}
         <TouchableOpacity
           style={s.logoutButton}
@@ -469,7 +581,32 @@ export default function ProfileScreen() {
           <Ionicons name="log-out-outline" size={18} color="#DC2626" />
           <Text style={s.logoutButtonText}>Đăng xuất tài khoản</Text>
         </TouchableOpacity>
+
+        <Text style={s.copyrightText}>
+          ©Bản quyền thuộc về Nguyễn Thị Diễm Quỳnh & Tạ Kim Hương
+        </Text>
       </ScrollView>
+
+      {/* Bottom Sheet đổi ảnh & Ghi chú kiểu Instagram */}
+      <StoryModal
+        mode={avatarModalMode}
+        onClose={() => setAvatarModalMode('closed')}
+        onChangeMode={setAvatarModalMode}
+        targetUser={{
+          fullName: fullName || user?.fullName,
+          avatarUrl: avatarUrl || user?.avatarUrl,
+          role: user?.role,
+          note: user?.note,
+        }}
+        isOwnProfile
+        onPickAvatarCamera={takeAvatarPhoto}
+        onPickAvatarLibrary={pickAvatarFromLibrary}
+        onUserUpdated={(u) => {
+          updateUser(u);
+          setAvatarUrl(u.avatarUrl);
+        }}
+        onFeedbackMessage={(type, text) => setMessage({ type, text })}
+      />
 
       {/* Bottom Nav với tab profile active */}
       <BottomNav activeTab="profile" />
@@ -522,19 +659,32 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 12,
-    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
     marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+  },
+  alertIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   alertSuccess: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: '#6EE7B7',
   },
   alertError: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: '#FCA5A5',
   },
   alertText: {
     flex: 1,
@@ -852,5 +1002,12 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#DC2626',
+  },
+  copyrightText: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 8,
   },
 });

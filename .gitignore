@@ -14,3 +14,6 @@ build/
 .env
 .vscode/
 .idea/
+
+# User-uploaded runtime media
+backend/public/avatars/
