@@ -24,6 +24,11 @@ export const getFoods = asyncHandler(async (req, res) => {
   res.json(await mealService.getAllFoods());
 });
 
+export const addManualFood = asyncHandler(async (req, res) => {
+  const food = await mealService.createUserFood(req.user.id, req.body ?? {});
+  res.status(201).json(food);
+});
+
 export const submitFeedback = asyncHandler(async (req, res) => {
   const fb = await mealService.createFeedback(req.user.id, req.body ?? {});
   res.status(201).json(fb);

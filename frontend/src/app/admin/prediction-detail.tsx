@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants';
 import { adminService, type AdminPredictionDetail } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
+import { resolveFoodImageUri } from '@/utils/foodImage';
 import ErrorBox from '@/components/ui/ErrorBox';
 
 export default function AdminPredictionDetailScreen() {
@@ -58,8 +59,17 @@ export default function AdminPredictionDetailScreen() {
         {detail && (
           <>
             <View style={s.placeholderBox}>
-              <Ionicons name="scan-circle-outline" size={38} color={COLORS.primary} />
-              <Text style={s.placeholderTitle}>Bản ghi suy luận 3 mô hình AI</Text>
+              {detail.top3?.[0]?.classId ? (
+                <Image
+                  source={{ uri: resolveFoodImageUri(null, detail.top3[0].classId) || undefined }}
+                  style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 4 }}
+                />
+              ) : (
+                <Ionicons name="scan-circle-outline" size={38} color={COLORS.primary} />
+              )}
+              <Text style={s.placeholderTitle}>
+                Bản ghi suy luận 3 mô hình AI ({detail.top3?.[0]?.classId || '--'})
+              </Text>
               <Text style={s.placeholderSub}>
                 Ảnh quét được xử lý trực tiếp trên RAM để bảo vệ quyền riêng tư người dùng
               </Text>

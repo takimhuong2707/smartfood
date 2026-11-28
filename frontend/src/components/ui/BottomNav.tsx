@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants';
 
-type TabType = 'home' | 'stats' | 'camera' | 'library' | 'profile';
+type TabType = 'home' | 'stats' | 'camera' | 'library' | 'profile' | 'chat';
 
 interface BottomNavProps {
   activeTab: TabType;

@@ -15,13 +15,12 @@ import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
-import { API_URL, COLORS } from '@/constants';
+import { COLORS } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
 import { adminService, type AdminFood } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
+import { resolveFoodImageUri } from '@/utils/foodImage';
 import ErrorBox from '@/components/ui/ErrorBox';
-
-const BASE_HOST = API_URL.replace(/\/api\/?$/, '');
 
 const FILTERS = [
   { key: 'all', label: 'Tất cả' },
@@ -49,6 +48,7 @@ export default function AdminFoodsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -158,19 +158,20 @@ export default function AdminFoodsScreen() {
   };
 
   const renderItem = ({ item }: { item: AdminFood }) => {
-    const imgUri = item.imageUrl?.startsWith('http')
-      ? item.imageUrl
-      : item.imageUrl
-      ? `${BASE_HOST}${item.imageUrl}`
-      : null;
+    const imgUri = resolveFoodImageUri(item.imageUrl, item.aiClassId || item.classId || item.name);
+    const showImg = Boolean(imgUri && !failedImages[item._id]);
     const isHidden = item.isActive === false;
     const stdServing = item.servingSizes?.find((sv) => sv.isDefault)?.grams;
 
     return (
       <View style={s.card}>
         <View style={s.thumbBox}>
-          {imgUri ? (
-            <Image source={{ uri: imgUri }} style={s.thumb} />
+          {showImg && imgUri ? (
+            <Image
+              source={{ uri: imgUri }}
+              style={s.thumb}
+              onError={() => setFailedImages((prev) => ({ ...prev, [item._id]: true }))}
+            />
           ) : (
             <Ionicons name="restaurant-outline" size={22} color={COLORS.primary} />
           )}

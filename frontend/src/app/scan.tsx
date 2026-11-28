@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { mealService } from '@/services/meal.service';
+import { resolveFoodImageUri } from '@/utils/foodImage';
 import type {
   PredictionCandidate,
   PortionOption,
@@ -666,21 +667,30 @@ export default function ScanScreen() {
                   .filter((f) =>
                     f.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
                   )
-                  .map((f) => (
-                    <TouchableOpacity
-                      key={f._id}
-                      style={s.foodSelectItem}
-                      onPress={() => handleSelectManualFood(f)}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.foodSelectName}>{f.name}</Text>
-                        <Text style={s.foodSelectCal}>
-                          {f.nutritionPer100g.kcal} kcal / 100g
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-                    </TouchableOpacity>
-                  ))}
+                  .map((f) => {
+                    const thumbUri = resolveFoodImageUri(f.imageUrl, f.aiClassId || f.classId || f.name);
+                    return (
+                      <TouchableOpacity
+                        key={f._id}
+                        style={s.foodSelectItem}
+                        onPress={() => handleSelectManualFood(f)}
+                      >
+                        {thumbUri ? (
+                          <Image
+                            source={{ uri: thumbUri }}
+                            style={{ width: 40, height: 40, borderRadius: 8, marginRight: 10, backgroundColor: '#E8F5E9' }}
+                          />
+                        ) : null}
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.foodSelectName}>{f.name}</Text>
+                          <Text style={s.foodSelectCal}>
+                            {f.nutritionPer100g.kcal} kcal / 100g
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                      </TouchableOpacity>
+                    );
+                  })}
               </ScrollView>
             </View>
           </View>
@@ -729,12 +739,19 @@ export default function ScanScreen() {
                   )
                   .map((f) => {
                     const selected = feedbackFood?._id === f._id;
+                    const thumbUri = resolveFoodImageUri(f.imageUrl, f.aiClassId || f.classId || f.name);
                     return (
                       <TouchableOpacity
                         key={f._id}
                         style={[s.foodSelectItem, selected && s.foodSelectItemActive]}
                         onPress={() => setFeedbackFood({ _id: f._id, name: f.name })}
                       >
+                        {thumbUri ? (
+                          <Image
+                            source={{ uri: thumbUri }}
+                            style={{ width: 36, height: 36, borderRadius: 8, marginRight: 10, backgroundColor: '#E8F5E9' }}
+                          />
+                        ) : null}
                         <View style={{ flex: 1 }}>
                           <Text style={[s.foodSelectName, selected && { color: '#15803D' }]}>{f.name}</Text>
                         </View>

@@ -16,15 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
-import { API_URL, COLORS } from '@/constants';
+import { COLORS } from '@/constants';
 import { useAuth } from '@/hooks/useAuth';
 import { adminService } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
+import { resolveFoodImageUri } from '@/utils/foodImage';
 import Button from '@/components/ui/Button';
 import Field from '@/components/ui/Field';
 import ErrorBox from '@/components/ui/ErrorBox';
-
-const BASE_HOST = API_URL.replace(/\/api\/?$/, '');
 
 export default function AdminFoodFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -52,6 +51,7 @@ export default function AdminFoodFormScreen() {
   const [mealTime, setMealTime] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -93,6 +93,7 @@ export default function AdminFoodFormScreen() {
       quality: 0.8,
     });
     if (!res.canceled && res.assets?.[0]?.uri) {
+      setImgFailed(false);
       setImageUri(res.assets[0].uri);
     }
   };
@@ -178,13 +179,8 @@ export default function AdminFoodFormScreen() {
     );
   }
 
-  const previewUri =
-    imageUri ||
-    (existingImageUrl?.startsWith('http')
-      ? existingImageUrl
-      : existingImageUrl
-      ? `${BASE_HOST}${existingImageUrl}`
-      : null);
+  const resolvedExisting = resolveFoodImageUri(existingImageUrl, aiClassId || name);
+  const previewUri = imageUri || (!imgFailed ? resolvedExisting : null);
 
   return (
     <KeyboardAvoidingView
@@ -210,7 +206,11 @@ export default function AdminFoodFormScreen() {
 
         <TouchableOpacity style={s.imageBox} onPress={pickImage} activeOpacity={0.8}>
           {previewUri ? (
-            <Image source={{ uri: previewUri }} style={s.previewImg} />
+            <Image
+              source={{ uri: previewUri }}
+              style={s.previewImg}
+              onError={() => setImgFailed(true)}
+            />
           ) : (
             <View style={s.imagePlaceholder}>
               <Ionicons name="image-outline" size={26} color={COLORS.primary} />

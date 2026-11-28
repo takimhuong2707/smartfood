@@ -72,7 +72,9 @@ export type SubmitFeedbackInput = {
 export type FoodItem = {
   _id: string;
   classId: string;
+  aiClassId?: string;
   name: string;
+  imageUrl?: string;
   nutritionPer100g: {
     kcal: number;
     protein?: number;

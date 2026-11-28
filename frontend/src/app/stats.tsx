@@ -210,7 +210,7 @@ export default function StatisticsScreen() {
                   {data?.weight?.currentKg || 47.0} <Text style={s.kpiUnit}>kg</Text>
                 </Text>
                 <Text style={s.kpiSub}>
-                  Cao {user?.heightCm || (data?.weight?.currentKg && data?.weight?.bmi ? Math.round(Math.sqrt(data.weight.currentKg / data.weight.bmi) * 100) : '--')} cm • BMI {data?.weight?.bmi || '--'}
+                  Cao {user?.latestMetric?.heightCm || (data?.weight?.currentKg && data?.weight?.bmi ? Math.round(Math.sqrt(data.weight.currentKg / data.weight.bmi) * 100) : '--')} cm • BMI {data?.weight?.bmi || '--'}
                 </Text>
               </View>
             </View>

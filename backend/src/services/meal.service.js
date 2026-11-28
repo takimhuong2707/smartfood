@@ -9,6 +9,8 @@ import Feedback from '../models/Feedback.js';
 import { env } from '../config/env.js';
 import AppError from '../utils/AppError.js';
 import { invalidateStatsCache } from './adminStats.service.js';
+import { resolveDefaultFoodImage, toFoodSlug } from '../utils/foodImage.js';
+import { FOOD_DETAILS } from '../data/foodDetails.js';
 
 let foodsCache = null;
 
@@ -53,9 +55,17 @@ export async function ensureFoodsSeeded() {
     const smallGrams = Math.round(standardGrams * 0.75);
     const largeGrams = Math.round(standardGrams * 1.25);
 
+    const extra = FOOD_DETAILS[classId] || {};
     foodsToInsert.push({
       classId,
+      aiClassId: classId,
       name,
+      category: extra.category,
+      ingredients: extra.ingredients,
+      cookingMethod: extra.cookingMethod,
+      mealTime: extra.mealTime,
+      source: 'system',
+      imageUrl: resolveDefaultFoodImage(classId, name),
       nutritionPer100g: {
         kcal: kcalPer100g,
         protein: Number(((proteinG / standardGrams) * 100).toFixed(1)),
@@ -385,5 +395,59 @@ export async function createFeedback(userId, payload) {
 
 export async function getAllFoods() {
   await ensureFoodsSeeded();
-  return Food.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
+  const foods = await Food.find({ isActive: { $ne: false } }).sort({ name: 1 }).lean();
+  return foods.map((f) => {
+    const extra = FOOD_DETAILS[f.aiClassId || f.classId] || {};
+    return {
+      ...f,
+      category: f.category || extra.category,
+      ingredients: f.ingredients || extra.ingredients,
+      cookingMethod: f.cookingMethod || extra.cookingMethod,
+      mealTime: f.mealTime || extra.mealTime,
+      imageUrl: f.imageUrl || resolveDefaultFoodImage(f.aiClassId || f.classId, f.name),
+    };
+  });
+}
+
+export async function createUserFood(userId, payload = {}) {
+  const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+  if (!name) throw new AppError(400, 'Vui lòng nhập tên món ăn');
+
+  const servingGrams = Math.max(10, Math.min(5000, Math.round(Number(payload.servingGrams) || 100)));
+  const rawNut = payload.nutritionPer100g || {};
+  const kcal = Number(rawNut.kcal);
+  if (!Number.isFinite(kcal) || kcal <= 0 || kcal > 5000) {
+    throw new AppError(400, 'Lượng calo không hợp lệ');
+  }
+
+  const slugBase = toFoodSlug(name) || 'mon-tu-them';
+  const classId = `user_${slugBase}_${Date.now().toString(36)}`;
+  const small = Math.round(servingGrams * 0.75);
+  const large = Math.round(servingGrams * 1.25);
+
+  const created = await Food.create({
+    classId,
+    name,
+    source: 'user',
+    ingredients: typeof payload.ingredients === 'string' ? payload.ingredients.trim() : undefined,
+    cookingMethod: typeof payload.cookingMethod === 'string' ? payload.cookingMethod.trim() : undefined,
+    mealTime: typeof payload.mealTime === 'string' ? payload.mealTime.trim() : undefined,
+    imageUrl: resolveDefaultFoodImage('', name),
+    nutritionPer100g: {
+      kcal: Math.round(kcal),
+      protein: Number(rawNut.protein) || 0,
+      carb: Number(rawNut.carb) || 0,
+      fat: Number(rawNut.fat) || 0,
+      fiber: Number(rawNut.fiber) || 0,
+    },
+    servingSizes: [
+      { label: `Nhỏ ${small}g`, grams: small, isDefault: false },
+      { label: `Vừa ${servingGrams}g`, grams: servingGrams, isDefault: true },
+      { label: `Lớn ${large}g`, grams: large, isDefault: false },
+    ],
+    isActive: true,
+  });
+
+  invalidateFoodsCache();
+  return created;
 }

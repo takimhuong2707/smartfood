@@ -14,18 +14,24 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { API_URL, COLORS } from '@/constants';
+import { COLORS } from '@/constants';
 import { api } from '@/utils/api';
+import { resolveFoodImageUri, toFoodSlug } from '@/utils/foodImage';
 import BottomNav from '@/components/ui/BottomNav';
 
 interface FoodItem {
   _id: string;
   classId?: string;
+  aiClassId?: string;
   className?: string;
   name?: string;
   displayName?: string;
   category?: string;
+  ingredients?: string;
+  cookingMethod?: string;
+  mealTime?: string;
   servingGram?: number;
+  servingSizes?: { label: string; grams: number; isDefault?: boolean }[];
   imageUrl?: string;
   nutritionPer100g: {
     kcal: number;
@@ -42,19 +48,6 @@ const FILTER_CHIPS = [
   { key: 'banh', label: 'Bánh' },
   { key: 'other', label: 'Khác' },
 ];
-
-function toSlug(name?: string): string {
-  return (name || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-const BASE_HOST = API_URL.replace(/\/api\/?$/, '');
 
 function getFoodExtraInfo(name: string) {
   const n = name.toLowerCase();
@@ -169,7 +162,7 @@ export default function FoodLibraryScreen() {
     loadFoods();
   }, []);
 
-  const handleAddManualFood = () => {
+  const handleAddManualFood = async () => {
     const name = newName.trim();
     const kcal = Number(newKcal);
     const serving = Number(newServing) || 100;
@@ -184,21 +177,36 @@ export default function FoodLibraryScreen() {
     }
 
     const factor = 100 / serving;
-    const item: FoodItem = {
-      _id: `manual-${Date.now()}`,
-      classId: toSlug(name),
-      name,
-      servingGram: serving,
-      imageUrl: newImageUri || undefined,
-      nutritionPer100g: {
-        kcal: Math.round(kcal * factor),
-        protein: Number(((Number(newProtein) || 0) * factor).toFixed(1)),
-        carb: Number(((Number(newCarb) || 0) * factor).toFixed(1)),
-        fat: Number(((Number(newFat) || 0) * factor).toFixed(1)),
-      },
+    const nutritionPer100g = {
+      kcal: Math.round(kcal * factor),
+      protein: Number(((Number(newProtein) || 0) * factor).toFixed(1)),
+      carb: Number(((Number(newCarb) || 0) * factor).toFixed(1)),
+      fat: Number(((Number(newFat) || 0) * factor).toFixed(1)),
     };
 
-    setFoods((prev) => [item, ...prev]);
+    try {
+      const res = await api.post('/meals/foods', {
+        name,
+        servingGrams: serving,
+        nutritionPer100g,
+      });
+      const saved: FoodItem = {
+        ...res.data,
+        imageUrl: newImageUri || res.data?.imageUrl || undefined,
+      };
+      setFoods((prev) => [saved, ...prev]);
+    } catch {
+      const fallbackItem: FoodItem = {
+        _id: `manual-${Date.now()}`,
+        classId: toFoodSlug(name),
+        name,
+        servingGram: serving,
+        imageUrl: newImageUri || undefined,
+        nutritionPer100g,
+      };
+      setFoods((prev) => [fallbackItem, ...prev]);
+    }
+
     setNewName('');
     setNewServing('100');
     setNewKcal('');
@@ -236,8 +244,8 @@ export default function FoodLibraryScreen() {
     const foodName = item.name || item.displayName || item.classId || 'Món ăn';
     const kcal100 = Math.round(item.nutritionPer100g?.kcal || 0);
     const imgKey = item._id || item.classId || foodName;
-    const imgUri = item.imageUrl || `${BASE_HOST}/food-images/${toSlug(foodName)}.jpg?v=3`;
-    const hasImgError = failedImages[imgKey];
+    const imgUri = resolveFoodImageUri(item.imageUrl, item.aiClassId || item.classId || foodName);
+    const hasImgError = failedImages[imgKey] || !imgUri;
 
     return (
       <TouchableOpacity
@@ -246,7 +254,7 @@ export default function FoodLibraryScreen() {
         onPress={() => setSelectedFood(item)}
       >
         <View style={s.imageBox}>
-          {!hasImgError ? (
+          {!hasImgError && imgUri ? (
             <Image
               source={{ uri: imgUri }}
               style={s.foodImage}
@@ -396,7 +404,38 @@ export default function FoodLibraryScreen() {
                 <Ionicons name="close" size={22} color={COLORS.muted} />
               </TouchableOpacity>
             </View>
-            <Text style={s.detailSub}>Giá trị dinh dưỡng trên 100g:</Text>
+            {(() => {
+              const modalImgUri = selectedFood
+                ? resolveFoodImageUri(
+                    selectedFood.imageUrl,
+                    selectedFood.aiClassId || selectedFood.classId || selectedFood.name
+                  )
+                : null;
+              const stdG =
+                selectedFood?.servingSizes?.find((sv) => sv.isDefault)?.grams ||
+                selectedFood?.servingGram;
+              return (
+                <>
+                  {modalImgUri ? (
+                    <Image
+                      source={{ uri: modalImgUri }}
+                      style={{
+                        width: '100%',
+                        height: 155,
+                        borderRadius: 14,
+                        marginTop: 10,
+                        marginBottom: 8,
+                        backgroundColor: COLORS.primarySoft,
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  <Text style={s.detailSub}>
+                    Giá trị dinh dưỡng trên 100g{stdG ? ` (Khẩu phần chuẩn: ${stdG}g)` : ''}:
+                  </Text>
+                </>
+              );
+            })()}
             <View style={s.detailGrid}>
               <View style={s.detailBox}>
                 <Text style={s.detailVal}>{Math.round(selectedFood?.nutritionPer100g?.kcal || 0)}</Text>
@@ -417,28 +456,31 @@ export default function FoodLibraryScreen() {
             </View>
 
             {(() => {
-              const extra = getFoodExtraInfo(selectedFood?.name || selectedFood?.displayName || '');
+              const fallbackExtra = getFoodExtraInfo(selectedFood?.name || selectedFood?.displayName || '');
+              const ingredientsTxt = selectedFood?.ingredients || fallbackExtra.ingredients;
+              const cookingTxt = selectedFood?.cookingMethod || fallbackExtra.cooking;
+              const mealTimeTxt = selectedFood?.mealTime || fallbackExtra.mealTime;
               return (
                 <View style={s.extraInfoBox}>
                   <View style={s.extraRow}>
                     <Text style={s.extraEmoji}>🥗</Text>
                     <View style={s.extraTextWrap}>
                       <Text style={s.extraLabel}>Thành phần chính</Text>
-                      <Text style={s.extraValue}>{extra.ingredients}</Text>
+                      <Text style={s.extraValue}>{ingredientsTxt}</Text>
                     </View>
                   </View>
                   <View style={s.extraRow}>
                     <Text style={s.extraEmoji}>🍳</Text>
                     <View style={s.extraTextWrap}>
                       <Text style={s.extraLabel}>Cách nấu ngắn gọn</Text>
-                      <Text style={s.extraValue}>{extra.cooking}</Text>
+                      <Text style={s.extraValue}>{cookingTxt}</Text>
                     </View>
                   </View>
                   <View style={s.extraRow}>
                     <Text style={s.extraEmoji}>⏰</Text>
                     <View style={s.extraTextWrap}>
                       <Text style={s.extraLabel}>Nên ăn vào buổi nào</Text>
-                      <Text style={s.extraValue}>{extra.mealTime}</Text>
+                      <Text style={s.extraValue}>{mealTimeTxt}</Text>
                     </View>
                   </View>
                 </View>

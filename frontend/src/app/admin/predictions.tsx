@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Platform,
   RefreshControl,
   Share,
@@ -18,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '@/constants';
 import { adminService, type AdminPredictionItem } from '@/services/admin.service';
 import { getErrorMessage } from '@/utils/api';
+import { resolveFoodImageUri } from '@/utils/foodImage';
 import ErrorBox from '@/components/ui/ErrorBox';
 
 const FILTERS = [
@@ -43,6 +45,7 @@ export default function AdminPredictionsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedThumb, setFailedThumb] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -231,13 +234,22 @@ export default function AdminPredictionsScreen() {
                 ? Math.round(top1.confidence * 100)
                 : Math.round(top1.confidence)
               : 0;
+            const thumbUri = top1?.classId ? resolveFoodImageUri(null, top1.classId) : null;
             return (
               <TouchableOpacity
                 style={s.card}
                 onPress={() => router.push(`/admin/prediction-detail?id=${item._id}` as Href)}
               >
                 <View style={s.thumbBox}>
-                  <Ionicons name="scan-outline" size={22} color={COLORS.primary} />
+                  {thumbUri && !failedThumb[item._id] ? (
+                    <Image
+                      source={{ uri: thumbUri }}
+                      style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                      onError={() => setFailedThumb((prev) => ({ ...prev, [item._id]: true }))}
+                    />
+                  ) : (
+                    <Ionicons name="scan-outline" size={22} color={COLORS.primary} />
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={s.nameRow}>
@@ -336,12 +348,13 @@ const s = StyleSheet.create({
     gap: 10,
   },
   thumbBox: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   name: { fontSize: 14, fontWeight: '700', color: COLORS.ink },

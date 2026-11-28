@@ -9,6 +9,8 @@ import ChatMessage from '../models/ChatMessage.js';
 import AppError from '../utils/AppError.js';
 import { recordAuditLog } from '../utils/auditLog.js';
 import { invalidateFoodsCache } from './meal.service.js';
+import { resolveDefaultFoodImage } from '../utils/foodImage.js';
+import { FOOD_DETAILS } from '../data/foodDetails.js';
 
 const foodNamesPath = path.resolve(process.cwd(), 'src/data/foodNames.json');
 const VALID_AI_CLASSES = new Set(Object.keys(JSON.parse(fs.readFileSync(foodNamesPath, 'utf-8'))));
@@ -159,8 +161,19 @@ export async function listFoods({
     Food.countDocuments(filter),
   ]);
 
+  const enrichedItems = items.map((f) => {
+    const extra = FOOD_DETAILS[f.aiClassId || f.classId] || {};
+    return {
+      ...f,
+      ingredients: f.ingredients || extra.ingredients,
+      cookingMethod: f.cookingMethod || extra.cookingMethod,
+      mealTime: f.mealTime || extra.mealTime,
+      imageUrl: f.imageUrl || resolveDefaultFoodImage(f.aiClassId || f.classId, f.name),
+    };
+  });
+
   return {
-    items,
+    items: enrichedItems,
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -174,7 +187,14 @@ export async function getFoodById(id) {
   if (!mongoose.isValidObjectId(id)) throw new AppError(400, 'ID món ăn không hợp lệ');
   const food = await Food.findById(id).lean();
   if (!food) throw new AppError(404, 'Không tìm thấy món ăn');
-  return food;
+  const extra = FOOD_DETAILS[food.aiClassId || food.classId] || {};
+  return {
+    ...food,
+    ingredients: food.ingredients || extra.ingredients,
+    cookingMethod: food.cookingMethod || extra.cookingMethod,
+    mealTime: food.mealTime || extra.mealTime,
+    imageUrl: food.imageUrl || resolveDefaultFoodImage(food.aiClassId || food.classId, food.name),
+  };
 }
 
 export async function createFood(adminId, payload) {
@@ -197,6 +217,11 @@ export async function createFood(adminId, payload) {
 
   const classId = aiClassId || `admin_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 
+  const resolvedDefaultImg =
+    typeof payload.imageUrl === 'string' && payload.imageUrl.trim()
+      ? payload.imageUrl.trim()
+      : resolveDefaultFoodImage(aiClassId || classId, name);
+
   const food = await Food.create({
     classId,
     ...(aiClassId ? { aiClassId } : {}),
@@ -205,7 +230,7 @@ export async function createFood(adminId, payload) {
     ingredients: typeof payload.ingredients === 'string' ? payload.ingredients.trim() : undefined,
     cookingMethod: typeof payload.cookingMethod === 'string' ? payload.cookingMethod.trim() : undefined,
     mealTime: typeof payload.mealTime === 'string' ? payload.mealTime.trim() : undefined,
-    imageUrl: typeof payload.imageUrl === 'string' ? payload.imageUrl.trim() : undefined,
+    imageUrl: resolvedDefaultImg,
     nutritionPer100g,
     servingSizes,
     isActive: true,
